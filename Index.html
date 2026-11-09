@@ -1,0 +1,2498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mortalidad de Hembras - Análisis y Registro</title>
+
+  <!-- ==================== DEPENDENCIAS EXTERNAS ==================== -->
+  <!-- Tailwind CSS para diseño responsivo y UI moderna -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Dexie.js para base de datos local (IndexedDB) -->
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SweetAlert2 para alertas -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- SheetJS para leer y exportar Excel -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js y Plugin para DataLabels (números sobre barras) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+  <!-- ==================== ESTILOS PERSONALIZADOS ==================== -->
+  <style>
+    /* Estilos SweetAlert Oscuro */
+    .swal2-popup.swal-dark-popup { background: #020617 !important; border: 1px solid #1e293b !important; border-radius: 1rem !important; color: #f8fafc !important; }
+    .swal2-popup.swal-dark-toast { background: #090d16 !important; border: 1px solid #1e293b !important; border-radius: 0.875rem !important; color: #f1f5f9 !important; }
+    .swal2-title { color: #f8fafc !important; font-size: 1.125rem !important; }
+    
+    /* Scrollbar personalizada */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+    /* Estilos de la Tabla tipo Excel */
+    #grid-wrapper { overflow: auto; max-height: calc(100vh - 250px); border-radius: 0 0 12px 12px; }
+    #data-table { border-collapse: collapse; min-width: 100%; font-size: 12px; }
+    #data-table thead th { position: sticky; top: 0; z-index: 10; background: #020617; color: #94a3b8; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 10px 8px; border-bottom: 2px solid #1e293b; border-right: 1px solid #1e293b; white-space: nowrap; user-select: none; }
+    #data-table th:not(:first-child), #data-table td:not(:first-child) { min-width: 90px; }
+    #data-table thead th:first-child, #data-table tbody td:first-child { position: sticky; left: 0; z-index: 11; background: #020617; min-width: 40px; width: 40px; text-align: center; color: #475569; font-weight: 700; border-right: 2px solid #1e293b; }
+    #data-table thead th:first-child { z-index: 12; }
+    #data-table tbody td { border-bottom: 1px solid #1e293b; border-right: 1px solid #1e293b; padding: 0; background: #0f172a; height: 32px; vertical-align: middle; }
+    #data-table tbody td input, #data-table tbody td select { width: 100%; height: 100%; background: transparent; border: none; outline: none; color: #e2e8f0; padding: 4px 8px; font-size: 12px; cursor: cell; box-sizing: border-box; }
+    #data-table tbody td select { cursor: pointer; }
+    #data-table tbody td select option { background: #0f172a; color: #e2e8f0; }
+    #data-table tbody td input:disabled, #data-table tbody td select:disabled { color: #94a3b8; cursor: not-allowed; opacity: 0.85; }
+    #data-table tbody td.cell-active { box-shadow: inset 0 0 0 2px #3b82f6; background: #1e3a5f !important; z-index: 2; }
+    #data-table tbody td.cell-active input, #data-table tbody td.cell-active select { color: #fff; }
+    #data-table tbody tr:nth-child(odd) td { background: #0d1829; }
+    #data-table tbody tr:nth-child(odd) td:first-child { background: #020617; }
+    #data-table tbody tr.has-data td { border-bottom-color: #1e3a5f40; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex overflow-hidden">
+
+  <!-- ==================== PANTALLA DE INICIO DE SESIÓN ==================== -->
+  <div id="login-screen" class="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between p-4 overflow-y-auto">
+    <div class="flex-1 flex items-center justify-center py-6">
+      <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 backdrop-blur">
+        <div class="flex flex-col items-center text-center space-y-2">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-600 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-rose-950/50 border border-white/10">
+            <i data-lucide="shield-check" class="w-7 h-7"></i>
+          </div>
+          <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white uppercase">Control de Mortalidad</h1>
+          <p class="text-xs text-slate-400">Sistema de Registro, Análisis Gráfico y Control de Usuarios</p>
+        </div>
+
+        <form id="login-form" onsubmit="iniciarSesion(event)" class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-300 uppercase mb-1.5">Usuario</label>
+            <div class="relative">
+              <i data-lucide="user" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input type="text" id="login-user" required autocomplete="username" placeholder="Ingresa tu usuario" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl pl-9 pr-3 py-2.5 text-xs sm:text-sm text-white outline-none transition">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-300 uppercase mb-1.5">Contraseña</label>
+            <div class="relative">
+              <i data-lucide="lock" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input type="password" id="login-pass" required autocomplete="current-password" placeholder="••••••••" class="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl pl-9 pr-10 py-2.5 text-xs sm:text-sm text-white outline-none transition">
+              <button type="button" onclick="toggleVerPasswordLogin()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+                <i data-lucide="eye" id="login-eye-icon" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="login-remember" checked class="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0">
+              <span>Mantener sesión activa</span>
+            </label>
+            <span class="text-[11px] text-emerald-400 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Acceso Seguro
+            </span>
+          </div>
+
+          <button type="submit" class="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-blue-950/50 transition flex items-center justify-center gap-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Ingresar al Sistema
+          </button>
+        </form>
+
+        <!-- Tarjeta de Autoría en el Login -->
+        <div class="pt-4 border-t border-slate-800/80 text-center space-y-1.5">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px] font-bold">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Creado por Carlos Humberto Agüero</span>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            Experto en <span class="text-emerald-400 font-semibold">Microsoft Excel</span>, <span class="text-amber-400 font-semibold">Power BI</span> e <span class="text-cyan-400 font-semibold">Inteligencia Artificial (IA)</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside id="sidebar" class="w-64 bg-slate-950 border-r border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute md:relative h-full transform -translate-x-full md:translate-x-0">
+    <div class="h-16 flex items-center justify-between px-4 border-b border-slate-800 shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center font-bold text-white shadow-lg">
+          <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-bold tracking-wider text-white uppercase">Mortalidad</h1>
+          <p class="text-[10px] text-slate-400">Panel de Control</p>
+        </div>
+      </div>
+      <!-- Cierre móvil -->
+      <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white p-1">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Tarjeta de Sesión Activa -->
+    <div class="p-3 mx-3 mt-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2 shrink-0">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold text-xs shrink-0" id="sidebar-user-avatar">
+            CA
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-white truncate" id="sidebar-user-name">Usuario</p>
+            <span id="sidebar-user-role" class="inline-block text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Admin</span>
+          </div>
+        </div>
+        <button onclick="cerrarSesion()" title="Cerrar Sesión" class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700 transition">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+      <div id="sidebar-user-perms" class="text-[10px] text-slate-400 leading-tight border-t border-slate-800/80 pt-1.5">
+        Acceso total de administrador
+      </div>
+    </div>
+
+    <nav class="p-4 space-y-1.5 flex-1 overflow-y-auto">
+      <p class="px-2 text-[10px] font-semibold text-slate-500 uppercase mb-1">Entrada de Datos</p>
+      <button onclick="switchView('data')" id="nav-data" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600/10 text-blue-400 border border-blue-500/20">
+        <i data-lucide="table-2" class="w-4 h-4 shrink-0"></i> <span>Tabla de Registros</span>
+      </button>
+
+      <div id="nav-charts-group" class="space-y-1.5 pt-3">
+        <p class="px-2 text-[10px] font-semibold text-slate-500 uppercase mb-1">Reportes Gráficos</p>
+        <button onclick="switchView('dia')" id="nav-dia" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 shrink-0"></i> <span>Gráfica por Día</span>
+        </button>
+        <button onclick="switchView('semana')" id="nav-semana" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+          <i data-lucide="calendar" class="w-4 h-4 shrink-0"></i> <span>Gráfica por Semana</span>
+        </button>
+        <button onclick="switchView('paridad')" id="nav-paridad" class="sidebar-btn w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800/60 hover:text-slate-200">
+          <i data-lucide="git-commit" class="w-4 h-4 shrink-0"></i> <span>Gráfica por Paridad</span>
+        </button>
+      </div>
+
+      <!-- Panel exclusivo para el Usuario Maestro / Admin -->
+      <div id="admin-sidebar-section" class="pt-3 space-y-1.5">
+        <p class="px-2 text-[10px] font-semibold text-amber-400/90 uppercase mb-1">Administración Maestro</p>
+        <button onclick="abrirModalUsuarios()" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-colors text-amber-300 bg-amber-950/30 hover:bg-amber-900/40 border border-amber-500/30">
+          <i data-lucide="users" class="w-4 h-4 shrink-0"></i> <span>Usuarios y Privilegios</span>
+        </button>
+        <button onclick="abrirModalSheets()" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-colors text-emerald-400 bg-emerald-950/30 hover:bg-emerald-900/40 border border-emerald-500/20">
+          <i data-lucide="cloud" class="w-4 h-4 shrink-0"></i> <span>Conectar Google Sheets</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Créditos del Creador en Sidebar -->
+    <div class="p-3 border-t border-slate-800 bg-slate-950/90 text-[10px] text-slate-400 space-y-1 shrink-0">
+      <div class="flex items-center gap-1.5 font-bold text-slate-200">
+        <i data-lucide="award" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+        <span class="truncate">Carlos Humberto Agüero</span>
+      </div>
+      <p class="text-[9px] text-slate-400 leading-snug">
+        Experto en <span class="text-emerald-400 font-semibold">Microsoft Excel</span>, <span class="text-amber-400 font-semibold">Power BI</span> e <span class="text-cyan-400 font-semibold">Inteligencia Artificial (IA)</span>
+      </p>
+    </div>
+  </aside>
+
+  <!-- Overlay para cerrar sidebar en móvil -->
+  <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden"></div>
+
+  <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+  <main class="flex-1 flex flex-col min-w-0 h-screen bg-slate-900 relative">
+    
+    <!-- HEADER -->
+    <header class="h-14 sm:h-16 bg-slate-950/80 backdrop-blur border-b border-slate-800 flex items-center justify-between px-3 sm:px-6 z-10 shrink-0">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button onclick="toggleSidebar()" class="md:hidden text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+        <h2 id="main-title" class="text-base sm:text-lg font-bold text-white tracking-tight hidden sm:block">Registro Operativo</h2>
+        <!-- Estado de Conexión Google Sheets -->
+        <button onclick="clickEstadoNube()" id="cloud-status-btn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500 transition">
+          <span id="cloud-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span id="cloud-status-text">Modo Local (Configurar Nube)</span>
+        </button>
+      </div>
+      
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Indicador de Cambios -->
+        <div id="unsaved-badge" class="hidden items-center gap-1.5 px-2.5 py-1 bg-amber-950/40 border border-amber-500/30 rounded-lg text-[10px] sm:text-xs text-amber-300 font-semibold">
+          <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Sin Guardar</span>
+        </div>
+
+        <!-- Botón Gestión de Usuarios Rápido (Solo Admin) -->
+        <button onclick="abrirModalUsuarios()" id="btn-header-users" class="hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-950/50 text-amber-300 hover:bg-amber-900/60 transition border border-amber-500/30" title="Administrar Usuarios y Privilegios">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i> <span class="hidden lg:inline">Usuarios</span>
+        </button>
+
+        <!-- Botón Recargar de Google Sheets -->
+        <button onclick="sincronizarDesdeSheets(true)" id="btn-sync-pull" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 hover:bg-slate-700 transition border border-slate-700" title="Actualizar datos desde Google Sheets">
+          <i data-lucide="refresh-cw" id="sync-icon" class="w-3.5 h-3.5 text-cyan-400"></i> <span class="hidden lg:inline">Actualizar</span>
+        </button>
+        
+        <div id="table-actions" class="flex gap-1.5 sm:gap-2">
+          <!-- Botón IMPORTAR Excel (Controlado por privilegios) -->
+          <input type="file" id="btn-import-excel" accept=".xlsx, .xls" class="hidden" onchange="importarExcel(event)">
+          <label id="lbl-import-excel" for="btn-import-excel" class="cursor-pointer flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-950/60 text-blue-300 hover:bg-blue-900/60 transition border border-blue-500/30">
+            <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> <span class="hidden xl:inline">Importar Excel</span>
+          </label>
+
+          <!-- Botón EXPORTAR Excel (Controlado por privilegios) -->
+          <button id="btn-export-excel" onclick="exportarExcel()" class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60 transition border border-emerald-500/30">
+            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> <span class="hidden xl:inline">Exportar Excel</span>
+          </button>
+        </div>
+
+        <!-- Botón Guardar -->
+        <button onclick="guardarTodo()" id="btn-save-all" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition shadow-md">
+          <i data-lucide="save" class="w-3.5 h-3.5"></i> Guardar
+        </button>
+      </div>
+    </header>
+
+    <!-- BARRA RÁPIDA DE NAVEGACIÓN MÓVIL (1-CLIC) -->
+    <div class="bg-slate-950 border-b border-slate-800 px-2 py-1.5 flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+      <div class="flex items-center gap-1.5">
+        <button onclick="switchView('data')" id="tab-mobile-data" class="mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-blue-600 text-white shadow">
+          <i data-lucide="table-2" class="w-3.5 h-3.5"></i> Tabla
+        </button>
+        <button onclick="switchView('dia')" id="tab-mobile-dia" class="mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-slate-900 text-slate-400 border border-slate-800">
+          <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Gráfica Día
+        </button>
+        <button onclick="switchView('semana')" id="tab-mobile-semana" class="mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-slate-900 text-slate-400 border border-slate-800">
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Gráfica Semana
+        </button>
+        <button onclick="switchView('paridad')" id="tab-mobile-paridad" class="mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-slate-900 text-slate-400 border border-slate-800">
+          <i data-lucide="git-commit" class="w-3.5 h-3.5"></i> Gráfica Paridad
+        </button>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <span id="header-user-pill" class="px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 whitespace-nowrap"></span>
+      </div>
+    </div>
+
+    <!-- AREA DE TRABAJO -->
+    <div class="flex-1 overflow-y-auto p-2 sm:p-4 md:p-5 space-y-3">
+      
+      <!-- ==================== VISTA: TABLA DE DATOS ==================== -->
+      <section id="view-data" class="view-section h-full flex flex-col space-y-3">
+        
+        <!-- FORMULARIO DE INGRESO RÁPIDO -->
+        <div id="quick-entry-card" class="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-xl shrink-0">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="text-xs font-bold text-slate-300 uppercase flex items-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> Agregar Registro Manual
+            </h3>
+            <span id="role-mode-notice" class="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-950/60 text-blue-300 border border-blue-500/20">
+              Modo ingreso activo
+            </span>
+          </div>
+          <form id="form-quick-entry" onsubmit="agregarRegistroRapido(event)" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Fecha</label>
+              <input type="date" id="qe-fecha" required class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">ID Animal</label>
+              <input type="text" id="qe-id" required placeholder="Ej: ZY00407" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 uppercase">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Genética</label>
+              <select id="qe-genetica" required class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+                <option value="" disabled selected>Seleccione...</option>
+                <option value="Yorkshire">Yorkshire</option>
+                <option value="F1">F1</option>
+                <option value="Landrace">Landrace</option>
+                <option value="Pietrain">Pietrain</option>
+                <option value="Duroc">Duroc</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Estatus</label>
+              <select id="qe-estatus" required class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+                <option value="" disabled selected>Seleccione...</option>
+                <option value="GESTANTE">GESTANTE</option>
+                <option value="LACTANTE">LACTANTE</option>
+                <option value="DESTETADA">DESTETADA</option>
+                <option value="LECHONA">LECHONA</option>
+                <option value="DESCARTE">DESCARTE</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Causa</label>
+              <input type="text" id="qe-causa" placeholder="Causa..." class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Lugar</label>
+              <input type="text" id="qe-lugar" placeholder="Ej: EXP" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500 uppercase">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Paridad</label>
+              <input type="number" id="qe-paridad" min="0" placeholder="Ej: 2" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Semana</label>
+              <input type="number" id="qe-semana" min="1" max="53" required placeholder="Ej: 2" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 uppercase mb-1">Día</label>
+              <select id="qe-dia" required class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-blue-500">
+                <option value="" disabled selected>Seleccione...</option>
+                <option value="Lunes">Lunes</option>
+                <option value="Martes">Martes</option>
+                <option value="Miércoles">Miércoles</option>
+                <option value="Jueves">Jueves</option>
+                <option value="Viernes">Viernes</option>
+                <option value="Sábado">Sábado</option>
+                <option value="Domingo">Domingo</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="w-full h-[34px] flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow-md">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Añadir
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex flex-wrap justify-between items-center gap-2 shrink-0 bg-slate-950/90 border border-slate-800 px-3 py-2 rounded-xl">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded" id="cell-ref">A1</span>
+            <span class="text-xs text-slate-300 font-mono truncate max-w-[120px] sm:max-w-xs" id="cell-value">—</span>
+          </div>
+
+          <!-- Buscador y Paginación -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <input type="text" id="table-search-input" oninput="filtrarTablaTexto()" placeholder="Buscar ID, sem, causa..." class="bg-slate-900 border border-slate-700 text-slate-200 text-[11px] rounded-lg px-2.5 py-1 w-36 sm:w-44 outline-none focus:border-blue-500">
+            
+            <div class="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg px-1.5 py-0.5">
+              <button type="button" onclick="cambiarPaginaTabla(-1)" class="px-2 py-0.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded">◀</button>
+              <span id="page-info-label" class="text-[10px] font-mono text-slate-300 px-1 whitespace-nowrap">Pág 1/1</span>
+              <button type="button" onclick="cambiarPaginaTabla(1)" class="px-2 py-0.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded">▶</button>
+            </div>
+
+            <button id="btn-add-rows" onclick="agregarFilas(5)" class="text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 bg-slate-800 text-white rounded-lg flex items-center gap-1 hover:bg-slate-700">
+              <i data-lucide="plus" class="w-3 h-3"></i> 5 Filas
+            </button>
+            <button id="btn-clean-empty" onclick="limpiarVacias()" class="text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 bg-slate-800 text-slate-300 rounded-lg flex items-center gap-1 hover:bg-slate-700">
+              <i data-lucide="eraser" class="w-3 h-3"></i> Limpiar
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex-1 flex flex-col relative">
+          <div id="grid-wrapper">
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>FECHA</th>
+                  <th>ID</th>
+                  <th>GENÉTICA</th>
+                  <th>ESTATUS</th>
+                  <th>CAUSA</th>
+                  <th>LUGAR</th>
+                  <th>PARIDAD</th>
+                  <th>SEMANA</th>
+                  <th>DÍA</th>
+                  <th class="text-center">ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody id="data-tbody">
+                <!-- Generado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VISTA: GRÁFICAS ==================== -->
+      <section id="view-charts" class="view-section hidden flex flex-col space-y-3 pb-4">
+        
+        <!-- TARJETA PRINCIPAL DE LA GRÁFICA -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-xl flex flex-col space-y-2">
+          <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+            <div>
+              <h3 class="text-xs sm:text-sm font-extrabold text-white uppercase flex items-center gap-1.5" id="chart-view-title">
+                <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-400"></i> Análisis Gráfico
+              </h3>
+              <p id="chart-subtitle-summary" class="text-[11px] text-emerald-400 font-semibold mt-0.5">Total filtradas: 0 hembras</p>
+            </div>
+            <button onclick="descargarGrafica()" class="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition shadow-md shrink-0">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Descargar Imagen
+            </button>
+          </div>
+
+          <div class="relative w-full h-[300px] sm:h-[380px] md:h-[430px] pt-1">
+            <canvas id="mainChart"></canvas>
+          </div>
+
+          <!-- Mini Tabla Resumen debajo de la gráfica -->
+          <div id="chart-summary-table" class="overflow-x-auto pt-2 border-t border-slate-800/80"></div>
+        </div>
+
+        <!-- FILTROS DE SEGMENTACIÓN COMPACTOS Y PLEGABLES -->
+        <div class="bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-xl shadow-lg">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <button type="button" onclick="togglePanelFiltros()" class="flex items-center gap-2 text-xs font-bold text-slate-200 uppercase">
+              <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-400"></i>
+              <span>Segmentación de Datos (Filtros)</span>
+              <span id="filters-Toggle-label" class="text-[10px] font-normal text-slate-400 ml-1">(Ocultar)</span>
+            </button>
+            <button type="button" onclick="limpiarTodosLosFiltros()" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+              Limpiar Filtros
+            </button>
+          </div>
+          
+          <div id="filters-body-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+            <div>
+              <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1.5">Semanas (Toca una o varias)</label>
+              <div id="filter-semana" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-lg border border-slate-800/80"></div>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1.5">Estatus (Múltiple)</label>
+              <div id="filter-estatus" class="flex flex-wrap gap-1.5 p-1 bg-slate-900/60 rounded-lg border border-slate-800/80"></div>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1.5">Genética (Múltiple)</label>
+              <div id="filter-genetica" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-lg border border-slate-800/80"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- ==================== PIE DE PÁGINA / FIRMA DEL CREADOR ==================== -->
+    <footer class="bg-slate-950 border-t border-slate-800/90 px-3 sm:px-6 py-2 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-400 z-10">
+      <div class="flex items-center gap-1.5 text-center sm:text-left">
+        <i data-lucide="cpu" class="w-3.5 h-3.5 text-blue-400 shrink-0 hidden sm:inline"></i>
+        <span>Esta aplicación fue creada por <strong class="text-white font-extrabold tracking-wide">Carlos Humberto Agüero</strong></span>
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-1.5 text-[10px]">
+        <span class="px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/20 font-semibold">Experto en Microsoft Excel y Power BI</span>
+        <span class="px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-500/20 font-semibold">Inteligencia Artificial (IA)</span>
+      </div>
+    </footer>
+  </main>
+
+  <!-- ==================== MODAL: GESTIÓN DE USUARIOS Y PRIVILEGIOS (SOLO ADMIN) ==================== -->
+  <div id="modal-users" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="p-4 sm:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/60 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+            <i data-lucide="shield" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Gestión de Usuarios y Privilegios</h3>
+            <p class="text-[11px] text-slate-400">Panel exclusivo de Carlos Humberto Agüero (Administrador Maestro)</p>
+          </div>
+        </div>
+        <button onclick="cerrarModalUsuarios()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-5 text-xs text-slate-300">
+        <!-- Formulario Crear / Editar Usuario -->
+        <form id="form-admin-user" onsubmit="guardarUsuarioAdmin(event)" class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-amber-400 uppercase flex items-center gap-1.5">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> <span id="form-user-title">Crear / Actualizar Usuario</span>
+            </span>
+            <button type="button" onclick="limpiarFormularioUsuario()" class="text-[11px] text-slate-400 hover:text-white underline">Limpiar formulario</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[10px] text-slate-400 uppercase mb-1">Nombre Completo</label>
+              <input type="text" id="nu-nombre" required placeholder="Ej: Juan Pérez" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-amber-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 uppercase mb-1">Usuario (Login)</label>
+              <input type="text" id="nu-username" required placeholder="Ej: juan" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-amber-500 outline-none lowercase">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 uppercase mb-1">Contraseña</label>
+              <input type="text" id="nu-password" required placeholder="Ej: granja2026" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-amber-500 outline-none font-mono">
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800/80">
+            <label class="block text-[10px] font-bold text-slate-300 uppercase mb-2">Privilegios asignados a este usuario:</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-agregar" checked class="rounded text-emerald-500">
+                <span><strong>Ingresar Datos</strong> (Añadir registros)</span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-graficas" checked class="rounded text-blue-500">
+                <span><strong>Ver y Sacar Gráficas</strong></span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-editar" class="rounded text-amber-500">
+                <span><strong>Editar Registros</strong> Guardados</span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-eliminar" class="rounded text-rose-500">
+                <span><strong>Eliminar Registros</strong></span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-exportar" class="rounded text-purple-500">
+                <span><strong>Exportar / Importar Excel</strong></span>
+              </label>
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer">
+                <input type="checkbox" id="nu-perm-admin" class="rounded text-amber-400">
+                <span><strong>Administrador Total</strong></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg transition flex items-center gap-1.5">
+              <i data-lucide="save" class="w-4 h-4"></i> Guardar Usuario y Privilegios
+            </button>
+          </div>
+        </form>
+
+        <!-- Lista de Usuarios Registrados -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-bold text-white uppercase">Usuarios Configurados</span>
+            <button type="button" onclick="descargarHTMLPreconfigurado()" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition shadow">
+              <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Descargar HTML con Usuarios para Compartir
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 uppercase">
+                  <th class="py-2 px-2">Nombre</th>
+                  <th class="py-2 px-2">Usuario</th>
+                  <th class="py-2 px-2">Contraseña</th>
+                  <th class="py-2 px-2">Privilegios Activos</th>
+                  <th class="py-2 px-2 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-tbody" class="divide-y divide-slate-800/70">
+                <!-- Generado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-end shrink-0">
+        <button onclick="cerrarModalUsuarios()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: CONFIGURACIÓN GOOGLE SHEETS & APPS SCRIPT ==================== -->
+  <div id="modal-sheets" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="p-4 sm:p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/60 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+            <i data-lucide="cloud" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Conexión en Tiempo Real con Google Sheets</h3>
+            <p class="text-[11px] text-slate-400">Sincroniza este archivo HTML con todos tus compañeros automáticamente</p>
+          </div>
+        </div>
+        <button onclick="cerrarModalSheets()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-5 text-xs text-slate-300">
+        <!-- Paso 1: Pegar URL del Web App (como antes) -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+          <label class="block text-xs font-bold text-emerald-400 uppercase">1. URL de tu Aplicación Web (Google Apps Script)</label>
+          <p class="text-[11px] text-slate-400">Pega aquí el enlace terminado en <code class="text-blue-400">/exec</code> que te genera Google Apps Script al implementar:</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="url" id="input-gas-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono">
+            <button onclick="guardarUrlSheets()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition shrink-0">
+              Conectar y Sincronizar
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+            <span class="text-[11px] text-slate-400">¿Quieres enviarle el archivo HTML ya configurado a tus compañeros?</span>
+            <button onclick="descargarHTMLPreconfigurado()" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-[11px] font-semibold transition">
+              <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Descargar HTML listo para compañeros
+            </button>
+          </div>
+        </div>
+
+        <!-- Paso 2: Código de Google Apps Script listo para copiar -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-blue-400 uppercase">2. Código para tu Google Sheet (Código.gs)</span>
+            <button onclick="copiarCodigoGAS()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-semibold border border-slate-700 transition">
+              <i data-lucide="copy" class="w-3.5 h-3.5 text-emerald-400"></i> Copiar Código.gs
+            </button>
+          </div>
+          <ol class="list-decimal list-inside space-y-1 text-[11px] text-slate-400">
+            <li>Abre tu hoja de cálculo en Google Sheets y ve al menú <strong>Extensiones &gt; Apps Script</strong>.</li>
+            <li>Borra lo que haya en <code>Código.gs</code> y pega el código de abajo.</li>
+            <li>Si también deseas usar la interfaz desde el enlace web de Google, crea un archivo HTML llamado <code>Index.html</code> en Apps Script y pega el código de este archivo HTML.</li>
+            <li>Haz clic en <strong>Implementar &gt; Nueva implementación</strong>, elige tipo <strong>Aplicación web</strong>, en <em>Ejecutar como</em> selecciona <strong>Yo</strong> y en <em>Quién tiene acceso</em> selecciona <strong>Cualquier persona</strong>.</li>
+            <li>Copia la URL generada y pégala en el recuadro de arriba.</li>
+          </ol>
+          <textarea id="gas-code-template" readonly rows="8" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-[11px] font-mono text-emerald-300 focus:outline-none"></textarea>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-end shrink-0">
+        <button onclick="cerrarModalSheets()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /** ========================================================================
+     *  CONFIGURACIÓN INICIAL, GOOGLE SHEETS Y USUARIOS PRECONFIGURADOS
+     *  ======================================================================== */
+    if (typeof ChartDataLabels !== 'undefined') { Chart.register(ChartDataLabels); }
+    Chart.defaults.color = '#cbd5e1';
+    Chart.defaults.font.family = 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+
+    // URL vacía por defecto (para pegarla manualmente en el modal como antes)
+    const DEFAULT_GAS_URL = "";
+
+    // Usuarios preconfigurados (se actualizan automáticamente al exportar el HTML para compañeros)
+    /*__DEFAULT_USERS_START__*/
+    const DEFAULT_USERS = [
+      {
+        username: "carlos",
+        password: "admin2026",
+        nombre: "Carlos Humberto Agüero",
+        esAdmin: true,
+        puedeAgregar: true,
+        puedeVerGraficas: true,
+        puedeEditar: true,
+        puedeEliminar: true,
+        puedeExportar: true
+      },
+      {
+        username: "admin",
+        password: "admin2026",
+        nombre: "Administrador Maestro",
+        esAdmin: true,
+        puedeAgregar: true,
+        puedeVerGraficas: true,
+        puedeEditar: true,
+        puedeEliminar: true,
+        puedeExportar: true
+      },
+      {
+        username: "operador",
+        password: "1234",
+        nombre: "Operador de Granja",
+        esAdmin: false,
+        puedeAgregar: true,
+        puedeVerGraficas: true,
+        puedeEditar: false,
+        puedeEliminar: false,
+        puedeExportar: false
+      }
+    ];
+    /*__DEFAULT_USERS_END__*/
+
+    const db = new Dexie("MortalidadHembrasDB_App");
+    db.version(1).stores({
+      datos: "++id, fecha, idAnimal, genetica, estatus, causa, lugar, paridad, semana, dia, fila"
+    });
+    db.version(2).stores({
+      datos: "++id, fecha, idAnimal, genetica, estatus, causa, lugar, paridad, semana, dia, fila",
+      config: "clave, valor"
+    });
+    db.version(3).stores({
+      datos: "++id, fecha, idAnimal, genetica, estatus, causa, lugar, paridad, semana, dia, fila",
+      config: "clave, valor",
+      usuarios: "username, nombre, esAdmin"
+    });
+
+    const CAMPOS = ["fecha", "idAnimal", "genetica", "estatus", "causa", "lugar", "paridad", "semana", "dia"];
+    const LETRAS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+    const COLS_SELECT = {
+      2: { campo: "genetica", opciones: ["", "Yorkshire", "F1", "Landrace", "Pietrain", "Duroc"] },
+      3: { campo: "estatus", opciones: ["", "GESTANTE", "LACTANTE", "DESTETADA", "LECHONA", "DESCARTE"] }
+    };
+
+    let dataFilas = [];
+    let listaUsuarios = [];
+    let usuarioActual = null;
+    let celdaActual = { fila: 0, col: 0 };
+    let cambiosPendientes = false;
+    let grillaNecesitaRender = true;
+    let gasWebAppUrl = DEFAULT_GAS_URL;
+    let sincronizando = false;
+
+    const FILAS_POR_PAGINA = 80;
+    let paginaActualTabla = 1;
+    let textoBusquedaTabla = "";
+    
+    let currentChartInstance = null;
+    let currentChartType = 'dia'; 
+    let activeFilters = { semana: [], estatus: [], genetica: [] };
+
+    const ES_ENTORNO_GAS = (typeof window.google !== 'undefined' && window.google.script && window.google.script.run);
+
+    /** ========================================================================
+     *  PLANTILLA DEL CÓDIGO GOOGLE APPS SCRIPT (Código.gs)
+     *  ======================================================================== */
+    const CODIGO_GS_COMPLETO = [
+      'const SHEET_NAME = "CHAT MUERTES";',
+      'const HEADERS = ["FECHA", "ID", "GENETICA", "ESTATUS", "CAUSA", "LUGAR", "PARIDAD", "SEMANA", "DIA"];',
+      '',
+      'function obtenerHoja() {',
+      '  const ss = SpreadsheetApp.getActiveSpreadsheet();',
+      '  let sheet = ss.getSheetByName(SHEET_NAME);',
+      '  if (!sheet) {',
+      '    sheet = ss.insertSheet(SHEET_NAME);',
+      '    sheet.appendRow(HEADERS);',
+      '    sheet.getRange(1, 1, 1, HEADERS.length).setBackground("#2563eb").setFontColor("#ffffff").setFontWeight("bold");',
+      '    sheet.setFrozenRows(1);',
+      '  }',
+      '  return sheet;',
+      '}',
+      '',
+      'function doGet(e) {',
+      '  if (e && e.parameter && e.parameter.action === "read") {',
+      '    const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet() });',
+      '    if (e.parameter.callback) {',
+      '      return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")',
+      '        .setMimeType(ContentService.MimeType.JAVASCRIPT);',
+      '    }',
+      '    return ContentService.createTextOutput(payload)',
+      '      .setMimeType(ContentService.MimeType.JSON);',
+      '  }',
+      '  try {',
+      '    return HtmlService.createHtmlOutputFromFile("Index")',
+      '      .setTitle("Mortalidad de Hembras - Panel de Control")',
+      '      .addMetaTag("viewport", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")',
+      '      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);',
+      '  } catch (err) {',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
+      '  }',
+      '}',
+      '',
+      'function doPost(e) {',
+      '  const lock = LockService.getScriptLock();',
+      '  lock.waitLock(25000);',
+      '  try {',
+      '    const payload = JSON.parse(e.postData.contents || "{}");',
+      '    if (payload.action === "saveAll" && Array.isArray(payload.registros)) {',
+      '      guardarRegistrosSheet(payload.registros);',
+      '    } else if (payload.action === "append" && payload.registro) {',
+      '      agregarFilaSheet(payload.registro);',
+      '    }',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
+      '  } catch (error) {',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: error.toString() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
+      '  } finally {',
+      '    lock.releaseLock();',
+      '  }',
+      '}',
+      '',
+      'function leerRegistrosSheet() {',
+      '  const sheet = obtenerHoja();',
+      '  const lastRow = sheet.getLastRow();',
+      '  if (lastRow <= 1) return [];',
+      '  const values = sheet.getRange(2, 1, lastRow - 1, 9).getDisplayValues();',
+      '  return values.map((r, i) => ({',
+      '    fila: i,',
+      '    fecha: r[0] || "",',
+      '    idAnimal: String(r[1] || "").toUpperCase(),',
+      '    genetica: r[2] || "",',
+      '    estatus: String(r[3] || "").toUpperCase(),',
+      '    causa: r[4] || "",',
+      '    lugar: String(r[5] || "").toUpperCase(),',
+      '    paridad: r[6] || "",',
+      '    semana: r[7] || "",',
+      '    dia: r[8] || ""',
+      '  })).filter(r => r.idAnimal || r.semana || r.fecha);',
+      '}',
+      '',
+      'function guardarRegistrosSheet(registros) {',
+      '  const sheet = obtenerHoja();',
+      '  const lastRow = sheet.getLastRow();',
+      '  if (lastRow > 1) {',
+      '    sheet.getRange(2, 1, lastRow - 1, 9).clearContent();',
+      '  }',
+      '  if (registros.length > 0) {',
+      '    const filas = registros.map(r => [',
+      '      r.fecha || "", r.idAnimal || "", r.genetica || "", r.estatus || "",',
+      '      r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""',
+      '    ]);',
+      '    sheet.getRange(2, 1, filas.length, 9).setValues(filas);',
+      '  }',
+      '  return leerRegistrosSheet();',
+      '}',
+      '',
+      'function agregarFilaSheet(r) {',
+      '  const sheet = obtenerHoja();',
+      '  sheet.appendRow([',
+      '    r.fecha || "", r.idAnimal || "", r.genetica || "", r.estatus || "",',
+      '    r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""',
+      '  ]);',
+      '  return leerRegistrosSheet();',
+      '}'
+    ].join('\n');
+
+    /** ========================================================================
+     *  GESTIÓN DE AUTENTICACIÓN, USUARIOS Y PRIVILEGIOS
+     *  ======================================================================== */
+    async function inicializarUsuariosDB() {
+      const guardados = await db.usuarios.toArray();
+      const mapUsuarios = new Map();
+
+      DEFAULT_USERS.forEach(u => mapUsuarios.set(u.username.toLowerCase(), { ...u }));
+      guardados.forEach(u => mapUsuarios.set(u.username.toLowerCase(), { ...u }));
+
+      listaUsuarios = Array.from(mapUsuarios.values());
+      await db.usuarios.bulkPut(listaUsuarios);
+    }
+
+    function tienePermiso(permiso) {
+      if (!usuarioActual) return false;
+      if (usuarioActual.esAdmin) return true;
+      return Boolean(usuarioActual[permiso]);
+    }
+
+    function toggleVerPasswordLogin() {
+      const inp = document.getElementById("login-pass");
+      if (!inp) return;
+      inp.type = inp.type === "password" ? "text" : "password";
+    }
+
+    async function iniciarSesion(e) {
+      e.preventDefault();
+      const userInp = document.getElementById("login-user").value.trim().toLowerCase();
+      const passInp = document.getElementById("login-pass").value.trim();
+      const recordar = document.getElementById("login-remember").checked;
+
+      const encontrado = listaUsuarios.find(
+        u => u.username.toLowerCase() === userInp && String(u.password) === String(passInp)
+      );
+
+      if (!encontrado) {
+        mostrarToast("Usuario o contraseña incorrectos.", "error");
+        return;
+      }
+
+      usuarioActual = encontrado;
+      if (recordar) {
+        await db.config.put({ clave: "sesion_usuario", valor: encontrado.username });
+      } else {
+        await db.config.delete("sesion_usuario");
+      }
+
+      document.getElementById("login-screen").classList.add("hidden");
+      aplicarPermisosInterfaz();
+      renderizarGrilla();
+      mostrarToast(`Bienvenido, ${encontrado.nombre}`, "success");
+    }
+
+    async function cerrarSesion() {
+      usuarioActual = null;
+      await db.config.delete("sesion_usuario");
+      document.getElementById("login-pass").value = "";
+      document.getElementById("login-screen").classList.remove("hidden");
+    }
+
+    function aplicarPermisosInterfaz() {
+      if (!usuarioActual) return;
+
+      const esAdmin = Boolean(usuarioActual.esAdmin);
+      const iniciales = (usuarioActual.nombre || usuarioActual.username)
+        .split(" ")
+        .map(p => p[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase();
+
+      document.getElementById("sidebar-user-avatar").textContent = iniciales;
+      document.getElementById("sidebar-user-name").textContent = usuarioActual.nombre;
+      document.getElementById("header-user-pill").textContent = `👤 ${usuarioActual.nombre} (${esAdmin ? 'Admin' : 'Operador'})`;
+
+      const badgeRole = document.getElementById("sidebar-user-role");
+      if (esAdmin) {
+        badgeRole.textContent = "ADMIN MAESTRO";
+        badgeRole.className = "inline-block text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+      } else {
+        badgeRole.textContent = "USUARIO OPERADOR";
+        badgeRole.className = "inline-block text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30";
+      }
+
+      const resumen = [];
+      if (tienePermiso("puedeAgregar")) resumen.push("✔ Ingresar");
+      if (tienePermiso("puedeVerGraficas")) resumen.push("✔ Gráficas");
+      resumen.push(tienePermiso("puedeEditar") ? "✔ Editar" : "✖ Sin Editar");
+      resumen.push(tienePermiso("puedeEliminar") ? "✔ Eliminar" : "✖ Sin Eliminar");
+      resumen.push(tienePermiso("puedeExportar") ? "✔ Exportar Excel" : "✖ Sin Exportar Excel");
+      document.getElementById("sidebar-user-perms").textContent = resumen.join(" · ");
+
+      const adminSidebar = document.getElementById("admin-sidebar-section");
+      const btnHeaderUsers = document.getElementById("btn-header-users");
+      if (esAdmin) {
+        adminSidebar.classList.remove("hidden");
+        btnHeaderUsers.classList.remove("hidden");
+        btnHeaderUsers.classList.add("flex");
+      } else {
+        adminSidebar.classList.add("hidden");
+        btnHeaderUsers.classList.add("hidden");
+        btnHeaderUsers.classList.remove("flex");
+      }
+
+      const btnExport = document.getElementById("btn-export-excel");
+      const lblImport = document.getElementById("lbl-import-excel");
+      if (tienePermiso("puedeExportar")) {
+        btnExport.classList.remove("hidden");
+        lblImport.classList.remove("hidden");
+      } else {
+        btnExport.classList.add("hidden");
+        lblImport.classList.add("hidden");
+      }
+
+      const cardQuickEntry = document.getElementById("quick-entry-card");
+      const btnAddRows = document.getElementById("btn-add-rows");
+      const btnSaveAll = document.getElementById("btn-save-all");
+      if (tienePermiso("puedeAgregar") || tienePermiso("puedeEditar")) {
+        cardQuickEntry.classList.remove("hidden");
+        btnAddRows.classList.remove("hidden");
+        btnSaveAll.classList.remove("hidden");
+      } else {
+        cardQuickEntry.classList.add("hidden");
+        btnAddRows.classList.add("hidden");
+        btnSaveAll.classList.add("hidden");
+      }
+
+      const btnClean = document.getElementById("btn-clean-empty");
+      if (tienePermiso("puedeEliminar")) {
+        btnClean.classList.remove("hidden");
+      } else {
+        btnClean.classList.add("hidden");
+      }
+
+      const navCharts = document.getElementById("nav-charts-group");
+      const tabDia = document.getElementById("tab-mobile-dia");
+      const tabSem = document.getElementById("tab-mobile-semana");
+      const tabPar = document.getElementById("tab-mobile-paridad");
+      if (tienePermiso("puedeVerGraficas")) {
+        navCharts.classList.remove("hidden");
+        tabDia.classList.remove("hidden");
+        tabSem.classList.remove("hidden");
+        tabPar.classList.remove("hidden");
+      } else {
+        navCharts.classList.add("hidden");
+        tabDia.classList.add("hidden");
+        tabSem.classList.add("hidden");
+        tabPar.classList.add("hidden");
+      }
+
+      const notice = document.getElementById("role-mode-notice");
+      if (notice) {
+        if (esAdmin) {
+          notice.textContent = "Modo Administrador Maestro (Control Total)";
+          notice.className = "text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-500/30";
+        } else {
+          notice.textContent = "Modo Operador: Puedes ingresar registros y ver gráficas (Edición/Eliminación/Exportación bloqueadas)";
+          notice.className = "text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-950/60 text-blue-300 border border-blue-500/20";
+        }
+      }
+    }
+
+    function abrirModalUsuarios() {
+      if (!tienePermiso("esAdmin")) {
+        return mostrarToast("Solo el Administrador Maestro puede gestionar usuarios.", "error");
+      }
+      limpiarFormularioUsuario();
+      renderizarTablaUsuariosAdmin();
+      document.getElementById("modal-users").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function cerrarModalUsuarios() {
+      document.getElementById("modal-users").classList.add("hidden");
+    }
+
+    function limpiarFormularioUsuario() {
+      document.getElementById("form-user-title").textContent = "Crear Nuevo Usuario (Por defecto solo Ingresar y Gráficas)";
+      document.getElementById("nu-nombre").value = "";
+      document.getElementById("nu-username").value = "";
+      document.getElementById("nu-password").value = "";
+      document.getElementById("nu-perm-agregar").checked = true;
+      document.getElementById("nu-perm-graficas").checked = true;
+      document.getElementById("nu-perm-editar").checked = false;
+      document.getElementById("nu-perm-eliminar").checked = false;
+      document.getElementById("nu-perm-exportar").checked = false;
+      document.getElementById("nu-perm-admin").checked = false;
+    }
+
+    function cargarUsuarioEnFormulario(username) {
+      const u = listaUsuarios.find(x => x.username.toLowerCase() === username.toLowerCase());
+      if (!u) return;
+      document.getElementById("form-user-title").textContent = `Editando privilegios de: ${u.nombre} (${u.username})`;
+      document.getElementById("nu-nombre").value = u.nombre;
+      document.getElementById("nu-username").value = u.username;
+      document.getElementById("nu-password").value = u.password;
+      document.getElementById("nu-perm-agregar").checked = Boolean(u.puedeAgregar);
+      document.getElementById("nu-perm-graficas").checked = Boolean(u.puedeVerGraficas);
+      document.getElementById("nu-perm-editar").checked = Boolean(u.puedeEditar);
+      document.getElementById("nu-perm-eliminar").checked = Boolean(u.puedeEliminar);
+      document.getElementById("nu-perm-exportar").checked = Boolean(u.puedeExportar);
+      document.getElementById("nu-perm-admin").checked = Boolean(u.esAdmin);
+    }
+
+    async function guardarUsuarioAdmin(e) {
+      e.preventDefault();
+      if (!tienePermiso("esAdmin")) return;
+
+      const nombre = document.getElementById("nu-nombre").value.trim();
+      const username = document.getElementById("nu-username").value.trim().toLowerCase();
+      const password = document.getElementById("nu-password").value.trim();
+      const esAdmin = document.getElementById("nu-perm-admin").checked;
+
+      const nuevo = {
+        username,
+        password,
+        nombre,
+        esAdmin,
+        puedeAgregar: esAdmin ? true : document.getElementById("nu-perm-agregar").checked,
+        puedeVerGraficas: esAdmin ? true : document.getElementById("nu-perm-graficas").checked,
+        puedeEditar: esAdmin ? true : document.getElementById("nu-perm-editar").checked,
+        puedeEliminar: esAdmin ? true : document.getElementById("nu-perm-eliminar").checked,
+        puedeExportar: esAdmin ? true : document.getElementById("nu-perm-exportar").checked
+      };
+
+      await db.usuarios.put(nuevo);
+      const idx = listaUsuarios.findIndex(u => u.username.toLowerCase() === username);
+      if (idx >= 0) {
+        listaUsuarios[idx] = nuevo;
+      } else {
+        listaUsuarios.push(nuevo);
+      }
+
+      if (usuarioActual && usuarioActual.username.toLowerCase() === username) {
+        usuarioActual = nuevo;
+        aplicarPermisosInterfaz();
+      }
+
+      renderizarTablaUsuariosAdmin();
+      limpiarFormularioUsuario();
+      mostrarToast(`Usuario "${username}" guardado correctamente.`, "success");
+    }
+
+    async function eliminarUsuarioAdmin(username) {
+      if (!tienePermiso("esAdmin")) return;
+      const uLower = username.toLowerCase();
+      if (uLower === "carlos" || uLower === "admin") {
+        return mostrarToast("No puedes eliminar la cuenta maestra de Administrador.", "warning");
+      }
+
+      const confirm = await Swal.fire({
+        title: `¿Eliminar usuario "${username}"?`,
+        text: "Este usuario ya no podrá iniciar sesión.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+        background: "#020617",
+        color: "#f8fafc",
+        confirmButtonColor: "#ef4444",
+        customClass: { popup: "swal-dark-popup" }
+      });
+
+      if (confirm.isConfirmed) {
+        await db.usuarios.delete(uLower);
+        listaUsuarios = listaUsuarios.filter(u => u.username.toLowerCase() !== uLower);
+        renderizarTablaUsuariosAdmin();
+        mostrarToast("Usuario eliminado.", "info");
+      }
+    }
+
+    function renderizarTablaUsuariosAdmin() {
+      const tbody = document.getElementById("users-table-tbody");
+      if (!tbody) return;
+
+      tbody.innerHTML = listaUsuarios.map(u => {
+        const badges = [];
+        if (u.esAdmin) {
+          badges.push(`<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">ADMIN TOTAL</span>`);
+        } else {
+          if (u.puedeAgregar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">Ingresar</span>`);
+          if (u.puedeVerGraficas) badges.push(`<span class="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-500/30">Gráficas</span>`);
+          if (u.puedeEditar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/30">Editar</span>`);
+          if (u.puedeEliminar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/30">Eliminar</span>`);
+          if (u.puedeExportar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30">Exportar Excel</span>`);
+        }
+
+        const btnEliminar = (u.username === "carlos" || u.username === "admin")
+          ? ""
+          : `<button type="button" onclick="eliminarUsuarioAdmin('${u.username}')" class="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded border border-rose-500/30">Borrar</button>`;
+
+        return `
+          <tr class="hover:bg-slate-900/60">
+            <td class="py-2 px-2 font-semibold text-white">${u.nombre}</td>
+            <td class="py-2 px-2 font-mono text-blue-300">${u.username}</td>
+            <td class="py-2 px-2 font-mono text-emerald-300">${u.password}</td>
+            <td class="py-2 px-2"><div class="flex flex-wrap gap-1">${badges.join("")}</div></td>
+            <td class="py-2 px-2 text-right space-x-1 whitespace-nowrap">
+              <button type="button" onclick="cargarUsuarioEnFormulario('${u.username}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded border border-slate-700">Editar Permisos</button>
+              ${btnEliminar}
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    /** ========================================================================
+     *  ALERTAS Y UI
+     *  ======================================================================== */
+    lucide.createIcons();
+
+    const SwalToast = Swal.mixin({
+      toast: true, position: "bottom-end", showConfirmButton: false, timer: 3000,
+      background: "#090d16", color: "#f1f5f9", customClass: { popup: "swal-dark-toast" }
+    });
+    function mostrarToast(mensaje, tipo = "success") {
+      SwalToast.fire({ icon: tipo, title: mensaje });
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebar-overlay");
+      if (sidebar.classList.contains("-translate-x-full")) {
+        sidebar.classList.remove("-translate-x-full");
+        overlay.classList.remove("hidden");
+      } else {
+        sidebar.classList.add("-translate-x-full");
+        overlay.classList.add("hidden");
+      }
+    }
+
+    function switchView(viewId) {
+      if (viewId !== 'data' && !tienePermiso('puedeVerGraficas')) {
+        return mostrarToast("No tienes privilegios para ver gráficas.", "error");
+      }
+
+      document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.sidebar-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600/10', 'text-blue-400', 'border-blue-500/20');
+        btn.classList.add('text-slate-400');
+      });
+      document.querySelectorAll('.mobile-tab-btn').forEach(btn => {
+        btn.className = "mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-slate-900 text-slate-400 border border-slate-800";
+      });
+
+      const activeBtn = document.getElementById(`nav-${viewId}`);
+      if(activeBtn) {
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('bg-blue-600/10', 'text-blue-400', 'border-blue-500/20');
+      }
+
+      const activeMobileTab = document.getElementById(`tab-mobile-${viewId}`);
+      if(activeMobileTab) {
+        activeMobileTab.className = "mobile-tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition bg-blue-600 text-white shadow";
+      }
+
+      if(viewId === 'data') {
+        document.getElementById('view-data').classList.remove('hidden');
+        document.getElementById('table-actions').classList.remove('hidden');
+        document.getElementById('main-title').textContent = "Registro de Mortalidad";
+        if (grillaNecesitaRender) {
+          renderizarGrilla();
+        }
+      } else {
+        document.getElementById('view-charts').classList.remove('hidden');
+        document.getElementById('table-actions').classList.add('hidden');
+        currentChartType = viewId;
+        
+        let titles = { 'dia': 'Mortalidad por Día', 'semana': 'Mortalidad por Semana', 'paridad': 'Mortalidad por Paridad' };
+        document.getElementById('main-title').textContent = titles[viewId];
+        document.getElementById('chart-view-title').innerHTML = `<i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-400"></i> ${titles[viewId]}`;
+        lucide.createIcons();
+
+        updateFiltersUI();
+        setTimeout(() => renderChart(), 20);
+      }
+
+      if(window.innerWidth < 768 && !document.getElementById("sidebar").classList.contains("-translate-x-full")) {
+        toggleSidebar();
+      }
+    }
+
+    function togglePanelFiltros() {
+      const body = document.getElementById("filters-body-container");
+      const lbl = document.getElementById("filters-Toggle-label");
+      if (!body) return;
+      if (body.classList.contains("hidden")) {
+        body.classList.remove("hidden");
+        if (lbl) lbl.textContent = "(Ocultar)";
+      } else {
+        body.classList.add("hidden");
+        if (lbl) lbl.textContent = "(Mostrar)";
+      }
+    }
+
+    function limpiarTodosLosFiltros() {
+      activeFilters = { semana: [], estatus: [], genetica: [] };
+      updateFiltersUI();
+      renderChart();
+    }
+
+    /** ========================================================================
+     *  SINCRONIZACIÓN EN LA NUBE CON GOOGLE SHEETS (APPS SCRIPT)
+     *  ======================================================================== */
+    function clickEstadoNube() {
+      if (tienePermiso("esAdmin")) {
+        abrirModalSheets();
+      } else {
+        sincronizarDesdeSheets(true);
+      }
+    }
+
+    function actualizarIndicadorNube(estado, texto) {
+      const dot = document.getElementById("cloud-dot");
+      const label = document.getElementById("cloud-status-text");
+      const btn = document.getElementById("cloud-status-btn");
+      const syncIcon = document.getElementById("sync-icon");
+      if (!dot || !label) return;
+
+      if (estado === "conectado") {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+        btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 transition";
+        label.textContent = texto || "Google Sheets Conectado";
+        if (syncIcon) syncIcon.classList.remove("animate-spin");
+      } else if (estado === "sincronizando") {
+        dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+        btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-950/60 text-amber-300 border border-amber-500/30 transition";
+        label.textContent = texto || "Sincronizando con Sheets...";
+        if (syncIcon) syncIcon.classList.add("animate-spin");
+      } else if (estado === "error") {
+        dot.className = "w-2 h-2 rounded-full bg-rose-500";
+        btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-950/60 text-rose-300 border border-rose-500/30 transition";
+        label.textContent = texto || "Sin conexión (Guardado Local)";
+        if (syncIcon) syncIcon.classList.remove("animate-spin");
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-slate-500";
+        btn.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 hover:border-slate-500 transition";
+        label.textContent = "Modo Local (Configurar Nube)";
+        if (syncIcon) syncIcon.classList.remove("animate-spin");
+      }
+    }
+
+    function abrirModalSheets() {
+      if (!tienePermiso("esAdmin")) {
+        return mostrarToast("Solo el Administrador puede configurar la conexión a Google Sheets.", "warning");
+      }
+      document.getElementById("gas-code-template").value = CODIGO_GS_COMPLETO;
+      document.getElementById("input-gas-url").value = gasWebAppUrl || "";
+      document.getElementById("modal-sheets").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function cerrarModalSheets() {
+      document.getElementById("modal-sheets").classList.add("hidden");
+    }
+
+    function copiarCodigoGAS() {
+      const textarea = document.getElementById("gas-code-template");
+      textarea.select();
+      document.execCommand("copy");
+      mostrarToast("Código.gs copiado al portapapeles.", "success");
+    }
+
+    async function guardarUrlSheets() {
+      if (!tienePermiso("esAdmin")) return;
+      const url = document.getElementById("input-gas-url").value.trim();
+      gasWebAppUrl = url;
+      await db.config.put({ clave: "gas_webapp_url", valor: url });
+      cerrarModalSheets();
+
+      if (url) {
+        await sincronizarDesdeSheets(true);
+      } else {
+        actualizarIndicadorNube("local");
+        mostrarToast("Modo local activado.", "info");
+      }
+    }
+
+    function descargarHTMLPreconfigurado() {
+      if (!tienePermiso("esAdmin")) return;
+      const url = (document.getElementById("input-gas-url")?.value.trim()) || gasWebAppUrl || "";
+
+      let htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      // Si el admin ya pegó una URL, incrustarla en el archivo descargado para sus compañeros
+      htmlContent = htmlContent.replace(
+        /const DEFAULT_GAS_URL = "[^"]*";/,
+        `const DEFAULT_GAS_URL = "${url}";`
+      );
+      // Incrustar todos los usuarios y sus privilegios configurados por el Admin
+      const usersJson = JSON.stringify(listaUsuarios, null, 6);
+      htmlContent = htmlContent.replace(
+        /\/\*__DEFAULT_USERS_START__\*\/[\s\S]*?\/\*__DEFAULT_USERS_END__\*\//,
+        `/*__DEFAULT_USERS_START__*/\n    const DEFAULT_USERS = ${usersJson};\n    /*__DEFAULT_USERS_END__*/`
+      );
+
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "Mortalidad_Hembras_Compartir.html";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      mostrarToast("Archivo HTML descargado con usuarios y configuración listos.", "success");
+    }
+
+    function leerSheetsPorJSONP(urlBase) {
+      return new Promise((resolve, reject) => {
+        const cbName = "gasCallback_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+        const script = document.createElement("script");
+        const sep = urlBase.includes("?") ? "&" : "?";
+        let terminado = false;
+
+        const limpiar = () => {
+          terminado = true;
+          try { delete window[cbName]; } catch (_) { window[cbName] = undefined; }
+          if (script.parentNode) script.parentNode.removeChild(script);
+        };
+
+        const timer = setTimeout(() => {
+          if (!terminado) {
+            limpiar();
+            reject(new Error("Tiempo de espera agotado en JSONP"));
+          }
+        }, 8000);
+
+        window[cbName] = (data) => {
+          if (!terminado) {
+            clearTimeout(timer);
+            limpiar();
+            resolve(data);
+          }
+        };
+
+        script.onerror = () => {
+          if (!terminado) {
+            clearTimeout(timer);
+            limpiar();
+            reject(new Error("Error de conexión en JSONP"));
+          }
+        };
+
+        script.src = `${urlBase}${sep}action=read&callback=${cbName}&t=${Date.now()}`;
+        document.body.appendChild(script);
+      });
+    }
+
+    async function sincronizarDesdeSheets(mostrarAlerta = false) {
+      if (sincronizando || cambiosPendientes) return;
+      if (!ES_ENTORNO_GAS && !gasWebAppUrl) {
+        if (mostrarAlerta) {
+          if (tienePermiso("esAdmin")) {
+            abrirModalSheets();
+          } else {
+            mostrarToast("Modo local activo (Nube no configurada).", "info");
+          }
+        }
+        return;
+      }
+
+      sincronizando = true;
+      actualizarIndicadorNube("sincronizando", "Descargando de Sheets...");
+
+      try {
+        let registrosRemotos = null;
+
+        if (ES_ENTORNO_GAS) {
+          registrosRemotos = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .leerRegistrosSheet();
+          });
+        } else {
+          const sep = gasWebAppUrl.includes("?") ? "&" : "?";
+          const urlLectura = `${gasWebAppUrl}${sep}action=read&t=${Date.now()}`;
+
+          try {
+            const res = await fetch(urlLectura, {
+              method: "GET",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "follow"
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Error al leer Google Sheets");
+            registrosRemotos = json.registros || [];
+          } catch (fetchErr) {
+            const jsonpData = await leerSheetsPorJSONP(gasWebAppUrl);
+            if (jsonpData && jsonpData.ok) {
+              registrosRemotos = jsonpData.registros || [];
+            } else {
+              throw fetchErr;
+            }
+          }
+        }
+
+        if (Array.isArray(registrosRemotos)) {
+          const normalizados = registrosRemotos.map((r, i) => ({
+            fila: i,
+            fecha: formatearFechaExcel(r.fecha),
+            idAnimal: String(r.idAnimal || "").toUpperCase(),
+            genetica: r.genetica || "",
+            estatus: String(r.estatus || "").toUpperCase(),
+            causa: r.causa || "",
+            lugar: String(r.lugar || "").toUpperCase(),
+            paridad: r.paridad !== undefined ? String(r.paridad) : "",
+            semana: r.semana !== undefined ? String(r.semana) : "",
+            dia: r.dia || "",
+            guardado: true
+          }));
+
+          await db.datos.clear();
+          if (normalizados.length > 0) {
+            await db.datos.bulkPut(normalizados);
+          }
+
+          const dbRegistros = (await db.datos.orderBy("fila").toArray()).map(r => ({ ...r, guardado: true }));
+          dataFilas = [...dbRegistros, ...generarFilasVacias(10)];
+          irAUltimaPaginaTabla();
+
+          if (!document.getElementById("view-data").classList.contains("hidden")) {
+            renderizarGrilla();
+          } else {
+            grillaNecesitaRender = true;
+            updateFiltersUI();
+            renderChart();
+          }
+
+          actualizarIndicadorNube("conectado", `Google Sheets (${normalizados.length} reg.)`);
+          if (mostrarAlerta) {
+            mostrarToast(`Sincronizado con Google Sheets (${normalizados.length} registros).`, "success");
+          }
+        }
+      } catch (err) {
+        actualizarIndicadorNube("error", "Modo Offline (Error de red)");
+        if (mostrarAlerta) {
+          mostrarToast("No se pudo conectar con Google Sheets. Verifica la URL.", "error");
+        }
+      } finally {
+        sincronizando = false;
+      }
+    }
+
+    async function enviarTodoASheets(registrosLimpios) {
+      if (!ES_ENTORNO_GAS && !gasWebAppUrl) return false;
+
+      sincronizando = true;
+      actualizarIndicadorNube("sincronizando", "Guardando en Google Sheets...");
+
+      try {
+        if (ES_ENTORNO_GAS) {
+          await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .guardarRegistrosSheet(registrosLimpios);
+          });
+        } else {
+          const payloadStr = JSON.stringify({ action: "saveAll", registros: registrosLimpios });
+          try {
+            const res = await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "follow",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Error en servidor Apps Script");
+          } catch (corsErr) {
+            await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "no-cors",
+              credentials: "omit",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+          }
+        }
+        actualizarIndicadorNube("conectado", `Google Sheets (${registrosLimpios.length} reg.)`);
+        return true;
+      } catch (err) {
+        actualizarIndicadorNube("error", "Guardado Local (Pendiente Nube)");
+        return false;
+      } finally {
+        sincronizando = false;
+      }
+    }
+
+    /** ========================================================================
+     *  LÓGICA DE IMPORTACIÓN DE EXCEL
+     *  ======================================================================== */
+    function formatearFechaExcel(fechaIn) {
+      if(!fechaIn) return "";
+      if (typeof fechaIn === "number") {
+        const date = new Date((fechaIn - (25567 + 2)) * 86400 * 1000);
+        return date.toISOString().split("T")[0];
+      }
+      
+      let str = String(fechaIn).trim();
+      if (str.includes("T")) str = str.split("T")[0];
+      let partes = str.split(/[-/]/);
+      if(partes.length === 3) {
+         if (partes[0].length === 4) {
+           return `${partes[0]}-${partes[1].padStart(2, '0')}-${partes[2].padStart(2, '0')}`;
+         }
+         let p0 = partes[0].padStart(2, '0');
+         let p1 = partes[1].padStart(2, '0');
+         let p2 = partes[2];
+         if (p2.length === 2) p2 = "20" + p2;
+         return `${p2}-${p1}-${p0}`;
+      }
+      return str; 
+    }
+
+    async function importarExcel(event) {
+      if (!tienePermiso("puedeExportar")) {
+        event.target.value = "";
+        return mostrarToast("No tienes privilegios para importar archivos Excel.", "error");
+      }
+
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          let sheetName = workbook.SheetNames.includes("CHAT MUERTES") ? "CHAT MUERTES" : workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonDatos = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+          
+          if (jsonDatos.length === 0) {
+            mostrarToast("El archivo Excel está vacío.", "warning");
+            return;
+          }
+
+          const nuevosRegistros = jsonDatos.map(row => {
+            return {
+              fecha: formatearFechaExcel(row["FECHA"] || row["Fecha"] || row["fecha"]),
+              idAnimal: String(row["ID"] || row["id"] || row["ID ANIMAL"] || "").toUpperCase(),
+              genetica: row["GENETICA"] || row["Genetica"] || row["genetica"] || "",
+              estatus: String(row["ESTATUS"] || row["Estatus"] || row["estatus"] || "").toUpperCase(),
+              causa: row["CAUSA"] || row["Causa"] || row["causa"] || "",
+              lugar: String(row["LUGAR"] || row["Lugar"] || row["lugar"] || "").toUpperCase(),
+              paridad: row["PARIDAD"] || row["Paridad"] || row["paridad"] || "",
+              semana: row["SEMANA"] || row["Semana"] || row["semana"] || "",
+              dia: row["DIA"] || row["Dia"] || row["dia"] || "",
+              guardado: true
+            };
+          }).filter(r => r.idAnimal || r.semana);
+
+          if (nuevosRegistros.length > 0) {
+            const result = await Swal.fire({
+              title: 'Importar Datos de Excel',
+              text: `Se encontraron ${nuevosRegistros.length} registros en la pestaña "${sheetName}". ¿Deseas añadirlos y sincronizarlos?`,
+              icon: 'question',
+              showCancelButton: true,
+              confirmButtonText: 'Sí, importar y guardar',
+              cancelButtonText: 'Cancelar',
+              background: '#020617', color: '#f8fafc',
+              customClass: { popup: "swal-dark-popup" }
+            });
+
+            if (result.isConfirmed) {
+              const aGuardar = [...dataFilas.filter(filaTieneDatos), ...nuevosRegistros];
+              aGuardar.forEach((f, i) => { f.fila = i; f.guardado = true; });
+              
+              await db.datos.clear();
+              await db.datos.bulkPut(aGuardar);
+              
+              const dbRegistros = (await db.datos.orderBy("fila").toArray()).map(r => ({ ...r, guardado: true }));
+              dataFilas = [...dbRegistros, ...generarFilasVacias(10)];
+              renderizarGrilla();
+              
+              if (ES_ENTORNO_GAS || gasWebAppUrl) {
+                await enviarTodoASheets(aGuardar);
+              }
+              mostrarToast(`¡${nuevosRegistros.length} registros importados con éxito!`, "success");
+            }
+          } else {
+             mostrarToast("No se encontraron datos válidos en el Excel.", "warning");
+          }
+        } catch (err) {
+          mostrarToast("Error al procesar el archivo Excel.", "error");
+        } finally {
+          event.target.value = "";
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    /** ========================================================================
+     *  LÓGICA DE TABLA DE DATOS (CON CONTROL DE EDICIÓN Y ELIMINACIÓN POR ROL)
+     *  ======================================================================== */
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        inicializarEventosTabla();
+        await inicializarUsuariosDB();
+
+        const hoy = new Date().toISOString().split("T")[0];
+        const inputFecha = document.getElementById("qe-fecha");
+        if (inputFecha && !inputFecha.value) inputFecha.value = hoy;
+
+        // Cargar URL guardada de Google Apps Script (si el usuario ya la pegó antes)
+        const cfgUrl = await db.config.get("gas_webapp_url");
+        if (cfgUrl && cfgUrl.valor) {
+          gasWebAppUrl = cfgUrl.valor;
+        } else if (DEFAULT_GAS_URL) {
+          gasWebAppUrl = DEFAULT_GAS_URL;
+        }
+
+        // Verificar si hay sesión guardada
+        const sesionGuardada = await db.config.get("sesion_usuario");
+        if (sesionGuardada && sesionGuardada.valor) {
+          const userObj = listaUsuarios.find(u => u.username.toLowerCase() === String(sesionGuardada.valor).toLowerCase());
+          if (userObj) {
+            usuarioActual = userObj;
+            document.getElementById("login-screen").classList.add("hidden");
+            aplicarPermisosInterfaz();
+          }
+        }
+
+        let registros = await db.datos.orderBy("fila").toArray();
+        if (registros.length === 0) {
+          const datosSemilla = [
+            { fecha: "2026-01-04", idAnimal: "ZY00407", genetica: "Yorkshire", estatus: "GESTANTE", causa: "Pericarditis Fibrinosa", lugar: "EXP", paridad: "5", semana: "2", dia: "Domingo", guardado: true },
+            { fecha: "2026-01-04", idAnimal: "ZY01754", genetica: "Yorkshire", estatus: "GESTANTE", causa: "Descompuesto", lugar: "EXP", paridad: "2", semana: "2", dia: "Domingo", guardado: true },
+            { fecha: "2026-01-04", idAnimal: "Z85706", genetica: "F1", estatus: "LACTANTE", causa: "Sacrificio/Pos", lugar: "EST", paridad: "7", semana: "2", dia: "Domingo", guardado: true },
+            { fecha: "2026-01-04", idAnimal: "Z93434", genetica: "F1", estatus: "LACTANTE", causa: "Sacrificio/Pos", lugar: "EST", paridad: "1", semana: "2", dia: "Domingo", guardado: true },
+            { fecha: "2026-01-04", idAnimal: "Z90451", genetica: "F1", estatus: "LACTANTE", causa: "Sacrificio/Pro", lugar: "EST", paridad: "3", semana: "2", dia: "Domingo", guardado: true },
+            { fecha: "2026-01-05", idAnimal: "Z93776", genetica: "F1", estatus: "GESTANTE", causa: "Neumonia Infecciosa", lugar: "EST", paridad: "0", semana: "2", dia: "Lunes", guardado: true },
+            { fecha: "2026-01-05", idAnimal: "Z91712", genetica: "F1", estatus: "LACTANTE", causa: "Sacrificio/Pos", lugar: "EST", paridad: "2", semana: "2", dia: "Lunes", guardado: true }
+          ];
+          datosSemilla.forEach((f, i) => f.fila = i);
+          await db.datos.bulkPut(datosSemilla);
+          registros = await db.datos.orderBy("fila").toArray();
+        }
+        
+        dataFilas = registros.map(r => ({ ...r, guardado: true }));
+        const llenas = dataFilas.filter(filaTieneDatos).length;
+        if (dataFilas.length - llenas < 10) {
+           const extras = generarFilasVacias(10);
+           extras.forEach((f, i) => f.fila = dataFilas.length + i);
+           dataFilas.push(...extras);
+        }
+        
+        irAUltimaPaginaTabla();
+        renderizarGrilla();
+
+        // Si ya tiene Google Sheets configurado o corre dentro de GAS, sincronizar automáticamente
+        if (ES_ENTORNO_GAS || gasWebAppUrl) {
+          await sincronizarDesdeSheets(false);
+          setInterval(() => sincronizarDesdeSheets(false), 45000);
+        } else {
+          actualizarIndicadorNube("local");
+        }
+      } catch (e) {
+        // Inicialización segura
+      }
+    });
+
+    function generarFilasVacias(n) {
+      return Array.from({ length: n }, (_, i) => ({
+        id: undefined, fila: dataFilas.length + i, guardado: false,
+        fecha: "", idAnimal: "", genetica: "", estatus: "", causa: "", lugar: "", paridad: "", semana: "", dia: ""
+      }));
+    }
+    function filaTieneDatos(f) { return f && CAMPOS.some(c => f[c] !== undefined && f[c] !== null && String(f[c]).trim() !== ""); }
+
+    function inicializarEventosTabla() {
+      const tbody = document.getElementById("data-tbody");
+      if (!tbody) return;
+
+      tbody.addEventListener("keydown", (e) => {
+        const target = e.target;
+        if (target.dataset && target.dataset.col !== undefined) {
+          teclaNavegacion(e);
+        }
+      });
+
+      tbody.addEventListener("input", (e) => {
+        const target = e.target;
+        if (target.dataset && target.dataset.col !== undefined) {
+          onInput(e);
+        }
+      });
+
+      tbody.addEventListener("change", (e) => {
+        const target = e.target;
+        if (target.tagName === "SELECT" && target.dataset && target.dataset.col !== undefined) {
+          onInput(e);
+        }
+      });
+
+      tbody.addEventListener("focusin", (e) => {
+        const target = e.target;
+        if (target.dataset && target.dataset.col !== undefined) {
+          onFocus(e);
+        }
+      });
+    }
+
+    function obtenerIndicesFiltradosTabla() {
+      if (!textoBusquedaTabla) {
+        return dataFilas.map((_, idx) => idx);
+      }
+      const q = textoBusquedaTabla.toLowerCase();
+      const indices = [];
+      for (let i = 0; i < dataFilas.length; i++) {
+        const f = dataFilas[i];
+        if (CAMPOS.some(c => String(f[c] || "").toLowerCase().includes(q))) {
+          indices.push(i);
+        }
+      }
+      return indices;
+    }
+
+    function irAUltimaPaginaTabla() {
+      const totalIndices = obtenerIndicesFiltradosTabla().length;
+      paginaActualTabla = Math.max(1, Math.ceil(totalIndices / FILAS_POR_PAGINA));
+    }
+
+    function filtrarTablaTexto() {
+      const input = document.getElementById("table-search-input");
+      textoBusquedaTabla = (input ? input.value : "").trim();
+      paginaActualTabla = 1;
+      renderizarGrilla();
+    }
+
+    function cambiarPaginaTabla(delta) {
+      const indices = obtenerIndicesFiltradosTabla();
+      const totalPaginas = Math.max(1, Math.ceil(indices.length / FILAS_POR_PAGINA));
+      const nueva = Math.max(1, Math.min(totalPaginas, paginaActualTabla + delta));
+      if (nueva !== paginaActualTabla) {
+        paginaActualTabla = nueva;
+        renderizarGrilla();
+      }
+    }
+
+    function renderizarGrilla() {
+      const tbody = document.getElementById("data-tbody");
+      if (!tbody) return;
+
+      const puedeEditarGuardados = tienePermiso("puedeEditar");
+      const puedeAgregarNuevos = tienePermiso("puedeAgregar");
+      const puedeBorrar = tienePermiso("puedeEliminar");
+
+      const indicesFiltrados = obtenerIndicesFiltradosTabla();
+      const totalPaginas = Math.max(1, Math.ceil(indicesFiltrados.length / FILAS_POR_PAGINA));
+      if (paginaActualTabla > totalPaginas) paginaActualTabla = totalPaginas;
+
+      const inicio = (paginaActualTabla - 1) * FILAS_POR_PAGINA;
+      const fin = inicio + FILAS_POR_PAGINA;
+      const indicesPagina = indicesFiltrados.slice(inicio, fin);
+
+      const labelPag = document.getElementById("page-info-label");
+      if (labelPag) {
+        const totalConDatos = dataFilas.filter(filaTieneDatos).length;
+        labelPag.textContent = `Pág ${paginaActualTabla}/${totalPaginas} (${totalConDatos} reg.)`;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      indicesPagina.forEach((idx) => {
+        const fila = dataFilas[idx];
+        const tr = document.createElement("tr");
+        tr.dataset.filaIdx = idx;
+        const tieneDatos = filaTieneDatos(fila);
+        if (tieneDatos) tr.classList.add("has-data");
+
+        // Bloquear edición si la fila ya fue guardada y el usuario no tiene permiso de editar
+        const celdaBloqueada = fila.guardado ? !puedeEditarGuardados : !puedeAgregarNuevos;
+
+        const tdNum = document.createElement("td");
+        tdNum.textContent = idx + 1;
+        tr.appendChild(tdNum);
+
+        CAMPOS.forEach((campo, colIdx) => {
+          const td = document.createElement("td");
+          td.dataset.col = colIdx;
+          td.dataset.fila = idx;
+
+          let input;
+          if (COLS_SELECT[colIdx]) {
+            input = document.createElement("select");
+            COLS_SELECT[colIdx].opciones.forEach(op => {
+              const opt = document.createElement("option");
+              opt.value = op;
+              opt.textContent = op || "—";
+              if (fila[campo] === op) opt.selected = true;
+              input.appendChild(opt);
+            });
+          } else {
+            input = document.createElement("input");
+            input.type = (campo === "fecha") ? "date" : "text";
+            input.value = fila[campo] || "";
+            input.autocomplete = "off";
+            input.spellcheck = false;
+          }
+
+          if (celdaBloqueada) {
+            input.disabled = true;
+            input.title = "Solo lectura (Edición restringida al Administrador)";
+          }
+
+          input.dataset.col = colIdx;
+          input.dataset.fila = idx;
+          td.appendChild(input);
+          tr.appendChild(td);
+        });
+
+        const tdAcciones = document.createElement("td");
+        tdAcciones.className = "text-center align-middle";
+        if (tieneDatos) {
+          if (puedeBorrar) {
+            tdAcciones.innerHTML = `
+              <button type="button" onclick="eliminarRegistro(${idx})" class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition cursor-pointer mx-auto flex items-center justify-center" title="Eliminar Registro">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+              </button>
+            `;
+          } else {
+            tdAcciones.innerHTML = `<span class="text-[10px] text-slate-500 font-semibold select-none" title="Protegido contra eliminación">🔒 Fijo</span>`;
+          }
+        }
+        tr.appendChild(tdAcciones);
+
+        fragment.appendChild(tr);
+      });
+
+      tbody.replaceChildren(fragment);
+      grillaNecesitaRender = false;
+      resaltarCeldaActiva();
+    }
+
+    function teclaNavegacion(e) {
+      const target = e.target;
+      const col = parseInt(target.dataset.col);
+      const fila = parseInt(target.dataset.fila);
+      let nF = fila, nC = col, capturar = false;
+      const totalF = dataFilas.length;
+
+      switch (e.key) {
+        case "Enter": case "ArrowDown":
+          nF = fila + 1;
+          if (nF >= totalF) { agregarFilas(5, true); }
+          capturar = true; break;
+        case "ArrowUp": nF = Math.max(0, fila - 1); capturar = true; break;
+        case "Tab":
+          if (e.shiftKey) { if (col > 0) nC = col - 1; else if (fila > 0) { nF = fila - 1; nC = CAMPOS.length - 1; } } 
+          else { if (col < CAMPOS.length - 1) nC = col + 1; else { nF = fila + 1; nC = 0; } }
+          capturar = true; break;
+        case "ArrowRight":
+          if (target.tagName === "INPUT" && target.type !== "date" && target.selectionStart === target.value.length) { nC = Math.min(CAMPOS.length - 1, col + 1); capturar = true; }
+          break;
+        case "ArrowLeft":
+          if (target.tagName === "INPUT" && target.type !== "date" && target.selectionStart === 0) { nC = Math.max(0, col - 1); capturar = true; }
+          break;
+      }
+      if (capturar) { e.preventDefault(); activarCelda(nF, nC); }
+    }
+
+    function onInput(e) {
+      const target = e.target;
+      const col = parseInt(target.dataset.col), fila = parseInt(target.dataset.fila);
+      const reg = dataFilas[fila];
+      if (!reg) return;
+
+      if (reg.guardado && !tienePermiso("puedeEditar")) {
+        mostrarToast("No tienes privilegios para editar registros existentes.", "error");
+        renderizarGrilla();
+        return;
+      }
+      if (!reg.guardado && !tienePermiso("puedeAgregar")) {
+        mostrarToast("No tienes privilegios para ingresar datos.", "error");
+        renderizarGrilla();
+        return;
+      }
+
+      reg[CAMPOS[col]] = target.value;
+      marcarCambios();
+      document.getElementById("cell-value").textContent = target.value || "—";
+      const tr = target.closest("tr");
+      if (tr && filaTieneDatos(reg)) tr.classList.add("has-data");
+    }
+
+    function onFocus(e) {
+      const target = e.target;
+      const col = parseInt(target.dataset.col), fila = parseInt(target.dataset.fila);
+      celdaActual = { fila, col };
+      resaltarCeldaActiva();
+      document.getElementById("cell-ref").textContent = `${LETRAS[col]}${fila + 1}`;
+      document.getElementById("cell-value").textContent = target.value || "—";
+    }
+
+    function activarCelda(fila, col) {
+      fila = Math.max(0, Math.min(fila, dataFilas.length - 1));
+      col = Math.max(0, Math.min(col, CAMPOS.length - 1));
+      celdaActual = { fila, col };
+
+      if (!textoBusquedaTabla) {
+        const paginaObjetivo = Math.floor(fila / FILAS_POR_PAGINA) + 1;
+        if (paginaObjetivo !== paginaActualTabla) {
+          paginaActualTabla = paginaObjetivo;
+          renderizarGrilla();
+        }
+      }
+
+      resaltarCeldaActiva();
+      
+      const td = document.querySelector(`#data-tbody tr[data-fila-idx="${fila}"] td[data-col="${col}"]`);
+      if (td && td.firstElementChild) {
+        const input = td.firstElementChild;
+        if (!input.disabled) {
+          input.focus();
+          if (input.tagName === "INPUT" && input.type !== "date") input.select();
+        }
+        input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+        document.getElementById("cell-ref").textContent = `${LETRAS[col]}${fila + 1}`;
+        document.getElementById("cell-value").textContent = input.value || "—";
+      }
+    }
+
+    function resaltarCeldaActiva() {
+      document.querySelectorAll("#data-tbody td.cell-active").forEach(td => td.classList.remove("cell-active"));
+      const td = document.querySelector(`#data-tbody tr[data-fila-idx="${celdaActual.fila}"] td[data-col="${celdaActual.col}"]`);
+      if (td) td.classList.add("cell-active");
+    }
+
+    function marcarCambios() {
+      if (!cambiosPendientes) {
+        cambiosPendientes = true;
+        document.getElementById("unsaved-badge").classList.remove("hidden");
+        document.getElementById("unsaved-badge").classList.add("flex");
+      }
+    }
+
+    function agregarFilas(n = 5, render = true) {
+      if (!tienePermiso("puedeAgregar")) {
+        return mostrarToast("No tienes privilegios para agregar filas.", "error");
+      }
+      const base = dataFilas.length;
+      const nuevas = generarFilasVacias(n).map((f, i) => ({ ...f, fila: base + i }));
+      dataFilas.push(...nuevas);
+      if (render) renderizarGrilla();
+    }
+
+    async function limpiarVacias() {
+      if (!tienePermiso("puedeEliminar")) {
+        return mostrarToast("Solo el administrador puede limpiar filas.", "error");
+      }
+      const idsEliminar = dataFilas.filter(f => !filaTieneDatos(f) && f.id !== undefined).map(f => f.id);
+      const llenas = dataFilas.filter(filaTieneDatos);
+      dataFilas = [...llenas, ...generarFilasVacias(20)];
+      dataFilas.forEach((f, i) => f.fila = i);
+      if (idsEliminar.length > 0) await db.datos.bulkDelete(idsEliminar);
+      renderizarGrilla();
+      mostrarToast("Filas vacías limpiadas.");
+    }
+
+    async function guardarTodo() {
+      if (!tienePermiso("puedeAgregar") && !tienePermiso("puedeEditar")) {
+        return mostrarToast("No tienes privilegios para guardar cambios.", "error");
+      }
+      try {
+        const aGuardar = dataFilas.filter(filaTieneDatos).map((f, i) => ({
+          ...(f.id ? { id: f.id } : {}),
+          fila: i,
+          fecha: f.fecha || "",
+          idAnimal: String(f.idAnimal || "").toUpperCase(),
+          genetica: f.genetica || "",
+          estatus: String(f.estatus || "").toUpperCase(),
+          causa: f.causa || "",
+          lugar: String(f.lugar || "").toUpperCase(),
+          paridad: f.paridad !== undefined ? String(f.paridad) : "",
+          semana: f.semana !== undefined ? String(f.semana) : "",
+          dia: f.dia || "",
+          guardado: true
+        }));
+
+        await db.datos.clear();
+        if (aGuardar.length > 0) {
+          await db.datos.bulkPut(aGuardar);
+        }
+        
+        const registros = (await db.datos.orderBy("fila").toArray()).map(r => ({ ...r, guardado: true }));
+        dataFilas = [...registros, ...generarFilasVacias(Math.max(10, 30 - registros.length))];
+        
+        cambiosPendientes = false;
+        document.getElementById("unsaved-badge").classList.remove("flex");
+        document.getElementById("unsaved-badge").classList.add("hidden");
+        renderizarGrilla();
+
+        if (ES_ENTORNO_GAS || gasWebAppUrl) {
+          const okNube = await enviarTodoASheets(aGuardar);
+          if (okNube) {
+            mostrarToast(`${aGuardar.length} registros guardados y sincronizados en Google Sheets.`, "success");
+          } else {
+            mostrarToast(`Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
+          }
+        } else {
+          mostrarToast(`${aGuardar.length} registros guardados localmente.`, "success");
+        }
+      } catch (err) {
+        mostrarToast("Error al guardar: " + err.message, "error");
+      }
+    }
+
+    async function eliminarRegistro(idx) {
+      if (!tienePermiso("puedeEliminar")) {
+        return mostrarToast("No tienes privilegios para eliminar registros.", "error");
+      }
+
+      const fila = dataFilas[idx];
+      if (!filaTieneDatos(fila)) return;
+      
+      const result = await Swal.fire({
+        title: '¿Eliminar registro?',
+        text: `Se borrará la mortalidad del animal ${fila.idAnimal || '(Sin ID)'}. Esta acción actualizará también Google Sheets.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        background: '#020617', color: '#f8fafc',
+        confirmButtonColor: '#ef4444',
+        customClass: { popup: "swal-dark-popup" }
+      });
+
+      if (result.isConfirmed) {
+        if (fila.id) {
+          await db.datos.delete(fila.id);
+        }
+        dataFilas.splice(idx, 1);
+        await guardarTodo();
+        mostrarToast("Registro eliminado y actualizado.", "info");
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        guardarTodo();
+      }
+    });
+
+    async function agregarRegistroRapido(e) {
+      e.preventDefault();
+      if (!tienePermiso("puedeAgregar")) {
+        return mostrarToast("No tienes privilegios para agregar información.", "error");
+      }
+      
+      const obj = {
+        fecha: document.getElementById('qe-fecha').value,
+        idAnimal: document.getElementById('qe-id').value.trim().toUpperCase(),
+        genetica: document.getElementById('qe-genetica').value,
+        estatus: document.getElementById('qe-estatus').value,
+        causa: document.getElementById('qe-causa').value.trim(),
+        lugar: document.getElementById('qe-lugar').value.trim().toUpperCase(),
+        paridad: document.getElementById('qe-paridad').value,
+        semana: document.getElementById('qe-semana').value,
+        dia: document.getElementById('qe-dia').value,
+        guardado: true
+      };
+
+      let idxVacia = dataFilas.findIndex(f => !filaTieneDatos(f));
+      if (idxVacia === -1) {
+        idxVacia = dataFilas.length;
+        agregarFilas(1, false);
+      }
+      dataFilas[idxVacia] = { ...dataFilas[idxVacia], ...obj };
+      
+      await guardarTodo();
+      
+      document.getElementById('qe-id').value = "";
+      document.getElementById('qe-causa').value = "";
+      document.getElementById('qe-lugar').value = "";
+      document.getElementById('qe-paridad').value = "";
+      document.getElementById('qe-id').focus();
+      
+      irAUltimaPaginaTabla();
+      renderizarGrilla();
+    }
+
+    /** ========================================================================
+     *  LÓGICA DE EXPORTACIÓN Y GRÁFICAS
+     *  ======================================================================== */
+    function exportarExcel() {
+      if (!tienePermiso("puedeExportar")) {
+        return mostrarToast("Solo el usuario Administrador puede exportar la información a Excel.", "error");
+      }
+      const wb = XLSX.utils.book_new();
+      const exportData = dataFilas.filter(filaTieneDatos).map(f => ({
+        "FECHA": f.fecha, "ID": f.idAnimal, "GENETICA": f.genetica, "ESTATUS": f.estatus,
+        "CAUSA": f.causa, "LUGAR": f.lugar, "PARIDAD": f.paridad, "SEMANA": f.semana, "DIA": f.dia
+      }));
+      if(exportData.length === 0) return mostrarToast("No hay datos para exportar.", "warning");
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      XLSX.utils.book_append_sheet(wb, ws, "Mortalidad");
+      XLSX.writeFile(wb, `Mortalidad_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function descargarGrafica() {
+      if (!tienePermiso("puedeVerGraficas")) {
+        return mostrarToast("No tienes privilegios para descargar gráficas.", "error");
+      }
+      const sourceCanvas = document.getElementById('mainChart');
+      if (!sourceCanvas) return;
+
+      const tempCanvas = document.createElement('canvas');
+      const pad = 28;
+      const headerH = 64;
+      const footerH = 34;
+      tempCanvas.width = sourceCanvas.width + pad * 2;
+      tempCanvas.height = sourceCanvas.height + headerH + footerH + pad;
+
+      const tCtx = tempCanvas.getContext('2d');
+      tCtx.fillStyle = '#020617';
+      tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+      const titles = { 'dia': 'REPORTE: MORTALIDAD POR DÍA', 'semana': 'REPORTE: MORTALIDAD POR SEMANA', 'paridad': 'REPORTE: MORTALIDAD POR PARIDAD' };
+      tCtx.fillStyle = '#f8fafc';
+      tCtx.font = 'bold 16px sans-serif';
+      tCtx.fillText(titles[currentChartType] || 'REPORTE DE MORTALIDAD', pad, 30);
+
+      const sub = document.getElementById('chart-subtitle-summary')?.textContent || '';
+      tCtx.fillStyle = '#34d399';
+      tCtx.font = 'bold 12px sans-serif';
+      tCtx.fillText(sub, pad, 50);
+
+      tCtx.drawImage(sourceCanvas, pad, headerH);
+
+      tCtx.fillStyle = '#94a3b8';
+      tCtx.font = 'bold 11px sans-serif';
+      tCtx.fillText('Aplicación creada por Carlos Humberto Agüero | Experto en Microsoft Excel, Power BI e Inteligencia Artificial (IA)', pad, tempCanvas.height - 14);
+
+      const url = tempCanvas.toDataURL('image/png', 1.0);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Reporte_${currentChartType}_${new Date().toISOString().split('T')[0]}.png`;
+      a.click();
+    }
+
+    function updateFiltersUI() {
+      const data = dataFilas.filter(filaTieneDatos);
+      const contSemana = document.getElementById('filter-semana');
+      const contEstatus = document.getElementById('filter-estatus');
+      const contGenetica = document.getElementById('filter-genetica');
+
+      const semanas = [...new Set(data.map(d => d.semana).filter(Boolean))].sort((a,b) => Number(a)-Number(b));
+      const estatuses = [...new Set(data.map(d => d.estatus).filter(Boolean))].sort();
+      const geneticas = [...new Set(data.map(d => d.genetica).filter(Boolean))].sort();
+
+      const createPills = (container, type, options) => {
+        container.innerHTML = '';
+        
+        const isAll = activeFilters[type].length === 0;
+        const btnAll = document.createElement('button');
+        btnAll.className = `px-2.5 py-1 text-[10px] sm:text-xs rounded-full font-semibold transition border cursor-pointer ${isAll ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'}`;
+        btnAll.textContent = 'TODOS';
+        btnAll.onclick = () => {
+          activeFilters[type] = [];
+          updateFiltersUI();
+          renderChart();
+        };
+        container.appendChild(btnAll);
+
+        options.forEach(opt => {
+          const isActive = activeFilters[type].includes(String(opt));
+          const btn = document.createElement('button');
+          btn.className = `px-2.5 py-1 text-[10px] sm:text-xs rounded-full font-semibold transition border cursor-pointer ${isActive ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/50' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'}`;
+          btn.textContent = opt;
+          btn.onclick = () => {
+            const optStr = String(opt);
+            if(isActive) {
+              activeFilters[type] = activeFilters[type].filter(x => x !== optStr);
+            } else {
+              activeFilters[type].push(optStr);
+            }
+            updateFiltersUI();
+            renderChart();
+          };
+          container.appendChild(btn);
+        });
+      };
+
+      createPills(contSemana, 'semana', semanas);
+      createPills(contEstatus, 'estatus', estatuses);
+      createPills(contGenetica, 'genetica', geneticas);
+    }
+
+    function getFilteredData() {
+      return dataFilas.filter(r => {
+        if(!filaTieneDatos(r)) return false;
+        
+        const matchSemana = activeFilters.semana.length === 0 || activeFilters.semana.includes(String(r.semana));
+        const matchEstatus = activeFilters.estatus.length === 0 || activeFilters.estatus.includes(String(r.estatus));
+        const matchGenetica = activeFilters.genetica.length === 0 || activeFilters.genetica.includes(String(r.genetica));
+        
+        return matchSemana && matchEstatus && matchGenetica;
+      });
+    }
+
+    function getStatusColor(status) {
+      const s = String(status).toUpperCase();
+      if (s.includes("DESTETADA")) return "#fbbf24";
+      if (s.includes("LACTANTE")) return "#9ca3af";
+      if (s.includes("GESTANTE")) return "#dc2626";
+      if (s.includes("LECHONA")) return "#10b981";
+      if (s.includes("DESCARTE")) return "#c084fc";  
+      return "#3b82f6";
+    }
+
+    const DIAS_CANONICOS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+    function normalizarDia(diaRaw, fechaRaw) {
+      const s = String(diaRaw || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      if (s.includes("lun")) return "Lunes";
+      if (s.includes("mar")) return "Martes";
+      if (s.includes("mie")) return "Miércoles";
+      if (s.includes("jue")) return "Jueves";
+      if (s.includes("vie")) return "Viernes";
+      if (s.includes("sab")) return "Sábado";
+      if (s.includes("dom")) return "Domingo";
+
+      if (fechaRaw) {
+        const partes = String(fechaRaw).split("-");
+        if (partes.length === 3) {
+          const d = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
+          if (!isNaN(d.getTime())) {
+            const mapJS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+            return mapJS[d.getDay()];
+          }
+        }
+      }
+      return String(diaRaw || "").trim();
+    }
+
+    function renderResumenTabla(labels, datasets, esApilada) {
+      const cont = document.getElementById("chart-summary-table");
+      if (!cont) return;
+      if (!labels || labels.length === 0) {
+        cont.innerHTML = `<p class="text-xs text-slate-400 text-center py-2">No hay datos para los filtros seleccionados.</p>`;
+        return;
+      }
+
+      let html = `<table class="w-full text-center text-[10px] sm:text-xs border-collapse"><thead><tr class="bg-slate-900 text-slate-300 border-b border-slate-800">`;
+      html += `<th class="py-1.5 px-2 text-left font-bold">ESTATUS</th>`;
+      labels.forEach(l => {
+        html += `<th class="py-1.5 px-2 font-bold">${l}</th>`;
+      });
+      html += `<th class="py-1.5 px-2 font-extrabold text-blue-400">TOTAL</th></tr></thead><tbody class="divide-y divide-slate-800/60">`;
+
+      datasets.forEach(ds => {
+        const sumaFila = ds.data.reduce((a, b) => a + b, 0);
+        if (esApilada && sumaFila === 0) return;
+        html += `<tr><td class="py-1 px-2 text-left font-bold whitespace-nowrap flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:${ds.backgroundColor}"></span>${ds.label}</td>`;
+        ds.data.forEach(v => {
+          html += `<td class="py-1 px-2 text-slate-300 font-mono">${v}</td>`;
+        });
+        html += `<td class="py-1 px-2 font-extrabold text-white font-mono">${sumaFila}</td></tr>`;
+      });
+
+      if (esApilada && datasets.length > 1) {
+        html += `<tr class="bg-slate-900/90 font-extrabold text-amber-300"><td class="py-1.5 px-2 text-left">TOTAL</td>`;
+        let granTotal = 0;
+        labels.forEach((_, i) => {
+          const colSum = datasets.reduce((acc, ds) => acc + (ds.data[i] || 0), 0);
+          granTotal += colSum;
+          html += `<td class="py-1.5 px-2 font-mono">${colSum}</td>`;
+        });
+        html += `<td class="py-1.5 px-2 font-mono text-emerald-400">${granTotal}</td></tr>`;
+      }
+
+      html += `</tbody></table>`;
+      cont.innerHTML = html;
+    }
+
+    function renderChart() {
+      const canvas = document.getElementById('mainChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (currentChartInstance) currentChartInstance.destroy();
+
+      const data = getFilteredData();
+
+      const semTxt = activeFilters.semana.length ? `Sem: ${activeFilters.semana.join(', ')}` : 'Todas las semanas';
+      const estTxt = activeFilters.estatus.length ? `Estatus: ${activeFilters.estatus.join(', ')}` : 'Todos los estatus';
+      const genTxt = activeFilters.genetica.length ? `Genética: ${activeFilters.genetica.join(', ')}` : 'Todas las genéticas';
+      const subEl = document.getElementById('chart-subtitle-summary');
+      if (subEl) {
+        subEl.textContent = `Total: ${data.length} muertas | ${semTxt} · ${estTxt} · ${genTxt}`;
+      }
+
+      const esMovil = window.innerWidth < 640;
+      let config = {};
+
+      const baseOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: {
+          padding: { top: 26, right: 10, bottom: 4, left: 4 }
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: '#e2e8f0',
+              boxWidth: esMovil ? 10 : 14,
+              padding: esMovil ? 8 : 14,
+              font: { size: esMovil ? 10 : 12, weight: 'bold' }
+            }
+          },
+          datalabels: {
+            color: '#ffffff',
+            clamp: true,
+            clip: false,
+            font: { weight: 'bold', size: esMovil ? 10 : 11 },
+            formatter: (val) => val > 0 ? val : ''
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#f1f5f9',
+              autoSkip: false,
+              maxRotation: esMovil ? 45 : 0,
+              font: { size: esMovil ? 10 : 11, weight: 'bold' }
+            },
+            grid: { color: '#1e293b' }
+          },
+          y: {
+            beginAtZero: true,
+            grace: '18%',
+            ticks: {
+              color: '#cbd5e1',
+              precision: 0,
+              font: { size: esMovil ? 10 : 11 }
+            },
+            grid: { color: '#1e293b' }
+          }
+        },
+        backgroundColor: '#020617'
+      };
+
+      const estatusBase = ["GESTANTE", "LACTANTE", "DESTETADA", "LECHONA", "DESCARTE"];
+      const estatusActivos = estatusBase.filter(est =>
+        data.some(d => String(d.estatus || "").toUpperCase() === est) ||
+        ["GESTANTE", "LACTANTE", "DESTETADA"].includes(est)
+      );
+
+      if (currentChartType === 'dia') {
+        const days = DIAS_CANONICOS;
+
+        const datasets = estatusActivos.map(est => ({
+          label: est,
+          data: days.map(day => data.filter(d => normalizarDia(d.dia, d.fecha) === day && String(d.estatus).toUpperCase() === est).length),
+          backgroundColor: getStatusColor(est),
+          borderRadius: 2
+        }));
+
+        config = {
+          type: 'bar',
+          data: { labels: days, datasets },
+          options: {
+            ...baseOptions,
+            scales: {
+              x: { ...baseOptions.scales.x, stacked: true },
+              y: { ...baseOptions.scales.y, stacked: true }
+            }
+          }
+        };
+        config.options.plugins.datalabels.anchor = 'center';
+        config.options.plugins.datalabels.align = 'center';
+        renderResumenTabla(days, datasets, true);
+
+      } else if (currentChartType === 'semana') {
+        const weeks = [...new Set(data.map(d => String(d.semana || "").trim()).filter(Boolean))].sort((a,b) => Number(a)-Number(b));
+
+        const datasets = estatusActivos.map(est => ({
+          label: est,
+          data: weeks.map(w => data.filter(d => String(d.semana).trim() === w && String(d.estatus).toUpperCase() === est).length),
+          backgroundColor: getStatusColor(est),
+          borderRadius: 2
+        }));
+
+        config = {
+          type: 'bar',
+          data: { labels: weeks, datasets },
+          options: {
+            ...baseOptions,
+            scales: {
+              x: { ...baseOptions.scales.x, stacked: true },
+              y: { ...baseOptions.scales.y, stacked: true }
+            }
+          }
+        };
+        config.options.plugins.datalabels.anchor = 'center';
+        config.options.plugins.datalabels.align = 'center';
+        renderResumenTabla(weeks, datasets, true);
+
+      } else if (currentChartType === 'paridad') {
+        const parities = [...new Set(data.map(d => String(d.paridad ?? "").trim()).filter(x => x !== ""))].sort((a,b) => Number(a)-Number(b));
+        const counts = parities.map(p => data.filter(d => String(d.paridad).trim() === p).length);
+        const dsParidad = [{ label: 'Muertas', data: counts, backgroundColor: '#9ca3af', borderRadius: 4 }];
+
+        config = {
+          type: 'bar',
+          data: {
+            labels: parities,
+            datasets: dsParidad
+          },
+          options: { ...baseOptions }
+        };
+        config.options.plugins.legend.display = false;
+        config.options.plugins.datalabels.anchor = 'end';
+        config.options.plugins.datalabels.align = 'end';
+        config.options.plugins.datalabels.offset = 2;
+        config.options.plugins.datalabels.color = '#ffffff';
+        renderResumenTabla(parities, dsParidad, false);
+      }
+
+      const customCanvasBackgroundColor = {
+        id: 'customCanvasBackgroundColor',
+        beforeDraw: (chart, args, options) => {
+          const {ctx} = chart;
+          ctx.save();
+          ctx.globalCompositeOperation = 'destination-over';
+          ctx.fillStyle = options.color || '#020617';
+          ctx.fillRect(0, 0, chart.width, chart.height);
+          ctx.restore();
+        }
+      };
+
+      currentChartInstance = new Chart(ctx, { ...config, plugins: [customCanvasBackgroundColor, ChartDataLabels] });
+    }
+  </script>
+</body>
+</html>

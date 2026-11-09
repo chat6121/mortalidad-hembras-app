@@ -1,0 +1,102 @@
+const SHEET_NAME = "CHAT MUERTES";
+const HEADERS = ["FECHA", "ID", "GENETICA", "ESTATUS", "CAUSA", "LUGAR", "PARIDAD", "SEMANA", "DIA"];
+
+function obtenerHoja() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow(HEADERS);
+    sheet.getRange(1, 1, 1, HEADERS.length)
+      .setBackground("#2563eb")
+      .setFontColor("#ffffff")
+      .setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action === "read") {
+    const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet() });
+    if (e.parameter.callback) {
+      return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return ContentService.createTextOutput(payload)
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  try {
+    return HtmlService.createHtmlOutputFromFile("Index")
+      .setTitle("Mortalidad de Hembras - Panel de Control")
+      .addMetaTag("viewport", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    const payload = JSON.parse(e.postData.contents || "{}");
+    if (payload.action === "saveAll" && Array.isArray(payload.registros)) {
+      guardarRegistrosSheet(payload.registros);
+    } else if (payload.action === "append" && payload.registro) {
+      agregarFilaSheet(payload.registro);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function leerRegistrosSheet() {
+  const sheet = obtenerHoja();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, 9).getDisplayValues();
+  return values.map((r, i) => ({
+    fila: i,
+    fecha: r[0] || "",
+    idAnimal: String(r[1] || "").toUpperCase(),
+    genetica: r[2] || "",
+    estatus: String(r[3] || "").toUpperCase(),
+    causa: r[4] || "",
+    lugar: String(r[5] || "").toUpperCase(),
+    paridad: r[6] || "",
+    semana: r[7] || "",
+    dia: r[8] || ""
+  })).filter(r => r.idAnimal || r.semana || r.fecha);
+}
+
+function guardarRegistrosSheet(registros) {
+  const sheet = obtenerHoja();
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, 9).clearContent();
+  }
+  if (registros.length > 0) {
+    const filas = registros.map(r => [
+      r.fecha || "", r.idAnimal || "", r.genetica || "", r.estatus || "",
+      r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""
+    ]);
+    sheet.getRange(2, 1, filas.length, 9).setValues(filas);
+  }
+  return leerRegistrosSheet();
+}
+
+function agregarFilaSheet(r) {
+  const sheet = obtenerHoja();
+  sheet.appendRow([
+    r.fecha || "", r.idAnimal || "", r.genetica || "", r.estatus || "",
+    r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""
+  ]);
+  return leerRegistrosSheet();
+}
