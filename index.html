@@ -2475,21 +2475,53 @@
       a.click();
     }
 
+    function getFilteredData(excludeType = null) {
+      return dataFilas.filter(r => {
+        if (!filaTieneDatos(r)) return false;
+
+        const matchSemana = excludeType === 'semana' || activeFilters.semana.length === 0 || activeFilters.semana.includes(String(r.semana));
+        const matchEstatus = excludeType === 'estatus' || activeFilters.estatus.length === 0 || activeFilters.estatus.includes(String(r.estatus));
+        const matchGenetica = excludeType === 'genetica' || activeFilters.genetica.length === 0 || activeFilters.genetica.includes(String(r.genetica));
+        const matchCausa = excludeType === 'causa' || activeFilters.causa.length === 0 || activeFilters.causa.includes(String(r.causa || "").trim());
+
+        return matchSemana && matchEstatus && matchGenetica && matchCausa;
+      });
+    }
+
     function updateFiltersUI() {
-      const data = dataFilas.filter(filaTieneDatos);
       const contSemana = document.getElementById('filter-semana');
       const contEstatus = document.getElementById('filter-estatus');
       const contGenetica = document.getElementById('filter-genetica');
       const contCausa = document.getElementById('filter-causa');
 
-      const semanas = [...new Set(data.map(d => d.semana).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
-      const estatuses = [...new Set(data.map(d => d.estatus).filter(Boolean))].sort();
-      const geneticas = [...new Set(data.map(d => d.genetica).filter(Boolean))].sort();
-      const causas = [...new Set(data.map(d => (d.causa || "").trim()).filter(Boolean))].sort();
+      // Filtrado cruzado estilo Power BI / Excel: calcular qué opciones tienen datos disponibles
+      const dataForSemana = getFilteredData('semana');
+      const dataForEstatus = getFilteredData('estatus');
+      const dataForGenetica = getFilteredData('genetica');
+      const dataForCausa = getFilteredData('causa');
+
+      const semanas = [...new Set(dataForSemana.map(d => d.semana).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+      const estatuses = [...new Set(dataForEstatus.map(d => d.estatus).filter(Boolean))].sort();
+      const geneticas = [...new Set(dataForGenetica.map(d => d.genetica).filter(Boolean))].sort();
+      const causas = [...new Set(dataForCausa.map(d => (d.causa || "").trim()).filter(Boolean))].sort();
+
+      // Limpiar filtros activos que ya no existan en los datos disponibles
+      ['semana', 'estatus', 'genetica', 'causa'].forEach(type => {
+        const validOpts = type === 'semana' ? semanas.map(String) :
+                          type === 'estatus' ? estatuses.map(String) :
+                          type === 'genetica' ? geneticas.map(String) :
+                          causas.map(String);
+        activeFilters[type] = activeFilters[type].filter(val => validOpts.includes(String(val)));
+      });
 
       const createPills = (container, type, options) => {
         if (!container) return;
         container.innerHTML = '';
+
+        if (options.length === 0) {
+          container.innerHTML = '<span class="text-[10px] text-slate-500 italic py-1 px-2">Sin datos disponibles</span>';
+          return;
+        }
 
         const isAll = activeFilters[type].length === 0;
         const btnAll = document.createElement('button');
@@ -2525,19 +2557,6 @@
       createPills(contEstatus, 'estatus', estatuses);
       createPills(contGenetica, 'genetica', geneticas);
       createPills(contCausa, 'causa', causas);
-    }
-
-    function getFilteredData() {
-      return dataFilas.filter(r => {
-        if (!filaTieneDatos(r)) return false;
-
-        const matchSemana = activeFilters.semana.length === 0 || activeFilters.semana.includes(String(r.semana));
-        const matchEstatus = activeFilters.estatus.length === 0 || activeFilters.estatus.includes(String(r.estatus));
-        const matchGenetica = activeFilters.genetica.length === 0 || activeFilters.genetica.includes(String(r.genetica));
-        const matchCausa = activeFilters.causa.length === 0 || activeFilters.causa.includes(String(r.causa || "").trim());
-
-        return matchSemana && matchEstatus && matchGenetica && matchCausa;
-      });
     }
 
     function getStatusColor(status) {
