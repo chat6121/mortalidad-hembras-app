@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Porci-Chat - Control y Producción Porcina</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ==============================================
+       VISTA DE LOGIN / INICIO DE SESIÓN
+       ============================================== -->
+  <div id="auth-container" class="auth-wrapper">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo" style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #e11d48, #2563eb); box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.4); border: 1px solid rgba(255, 255, 255, 0.15);">
+          <!-- Icono exacto shield-check de nuevo app -->
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <h1 style="font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; color: #ffffff; text-transform: uppercase;">Porci-Chat</h1>
+        <p style="font-size: 0.8rem; color: #94a3b8;">Sistema de Registro, Producción y Análisis Gráfico</p>
+      </div>
+
+      <form id="login-form" class="auth-form" autocomplete="off">
+        <div class="form-group">
+          <label for="login-username">Usuario o Correo</label>
+          <div class="input-with-icon">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <input type="text" id="login-username" placeholder="admin" required autofocus>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div class="label-row">
+            <label for="login-password">Contraseña</label>
+          </div>
+          <div class="input-with-icon">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <input type="password" id="login-password" placeholder="••••••••" required>
+            <button type="button" class="btn-toggle-password" id="toggle-password" aria-label="Mostrar contraseña">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="login-alert" class="alert alert-danger" style="display: none;"></div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="btn-login-submit">
+          <span>Ingresar</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </button>
+
+        <div class="credentials-badge">
+          <div class="badge-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Credenciales de prueba predeterminadas:
+          </div>
+          <code>Usuario: <strong>admin</strong> | Clave: <strong>admin123</strong></code>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       VISTA DEL SISTEMA (DASHBOARD, SIDEBAR, HEADER)
+       ============================================== -->
+  <div id="app-layout" class="layout" style="display: none;">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon" style="background: linear-gradient(135deg, #e11d48, #2563eb); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.15);">
+            <!-- Icono exacto shield-check de nuevo app -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <span class="brand-text" style="font-weight: 800; letter-spacing: -0.01em; color: #f8fafc;">Porci-Chat</span>
+        </div>
+        <button id="sidebar-close" class="btn-icon mobile-only" aria-label="Cerrar menú">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">General</div>
+        <a href="#dashboard" class="nav-item active" data-view="dashboard" data-tooltip="Dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="7" height="9" x="3" y="3" rx="1"/>
+            <rect width="7" height="5" x="14" y="3" rx="1"/>
+            <rect width="7" height="9" x="14" y="12" rx="1"/>
+            <rect width="7" height="5" x="3" y="16" rx="1"/>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+
+        <div class="nav-section-label">Operaciones</div>
+        <div class="nav-group open" id="nav-group-mpd">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-mpd-sub" data-tooltip="Módulo MPD">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            <span class="nav-label">Módulo MPD</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-mpd">
+            <a href="#mpd-table" class="nav-sub-item active" data-view="mpd-table" data-parent="mpd" data-tooltip="Tabla MPD">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Tabla MPD</span>
+            </a>
+            <a href="#mpd-charts" class="nav-sub-item" data-view="mpd-charts" data-parent="mpd" data-tooltip="Gráficos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-group" id="nav-group-cierres">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-cierres-sub" data-tooltip="Cierre de Salas">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span class="nav-label">Cierre de Salas</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-cierres">
+            <a href="#cierres-table" class="nav-sub-item" data-view="cierres-table" data-parent="cierres" data-tooltip="Tabla Cierres">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Tabla Cierres</span>
+            </a>
+            <a href="#cierres-charts" class="nav-sub-item" data-view="cierres-charts" data-parent="cierres" data-tooltip="Gráficos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-group" id="nav-group-partos">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-partos-sub" data-tooltip="Resumen de Partos">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            <span class="nav-label">Resumen Partos</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-partos">
+            <a href="#partos-table" class="nav-sub-item" data-view="partos-table" data-parent="partos" data-tooltip="Tabla Partos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Tabla Partos</span>
+            </a>
+            <a href="#partos-charts" class="nav-sub-item" data-view="partos-charts" data-parent="partos" data-tooltip="Gráficos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-group" id="nav-group-destetes">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-destetes-sub" data-tooltip="Módulo Destetes">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1"/>
+              <path d="M18 8h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-4"/>
+              <circle cx="6" cy="12" r="2"/>
+            </svg>
+            <span class="nav-label">Módulo Destetes</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-destetes">
+            <a href="#destetes-table" class="nav-sub-item" data-view="destetes-table" data-parent="destetes" data-tooltip="Tabla Destetes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Tabla Destetes</span>
+            </a>
+            <a href="#destetes-charts" class="nav-sub-item" data-view="destetes-charts" data-parent="destetes" data-tooltip="Gráficos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-group" id="nav-group-maternidad">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-maternidad-sub" data-tooltip="Módulo Maternidad">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12h6"/>
+              <path d="M12 9v6"/>
+              <rect x="3" y="4" width="18" height="16" rx="2"/>
+            </svg>
+            <span class="nav-label">Maternidad</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-maternidad">
+            <a href="#maternidad-table" class="nav-sub-item" data-view="maternidad-table" data-parent="maternidad" data-tooltip="Tablas por Área">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Tablas por Área</span>
+            </a>
+            <a href="#maternidad-charts" class="nav-sub-item" data-view="maternidad-charts" data-parent="maternidad" data-tooltip="Gráficos">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-group" id="nav-group-hembras">
+          <button type="button" class="nav-item nav-item-parent" id="btn-toggle-hembras-sub" data-tooltip="Mortalidad Hembras">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z"/>
+            </svg>
+            <span class="nav-label">Mort. Hembras</span>
+            <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="nav-submenu" id="submenu-hembras">
+            <a href="#hembras-table" class="nav-sub-item" data-view="hembras-table" data-parent="hembras" data-tooltip="Registro y Tabla">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              <span>Registro y Tabla</span>
+            </a>
+            <a href="#hembras-charts" class="nav-sub-item" data-view="hembras-charts" data-parent="hembras" data-tooltip="Gráficos y Filtros">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              <span>Gráficos y Filtros</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="nav-section-label">Administración</div>
+        <a href="#users" class="nav-item" data-view="users" data-tooltip="Gestión de Usuarios">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Usuarios</span>
+        </a>
+        <a href="#roles" class="nav-item" data-view="roles" data-tooltip="Roles y Permisos">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <span>Roles y Permisos</span>
+        </a>
+        <a href="#configuracion" class="nav-item" data-view="configuracion" data-tooltip="Configuración del Sistema">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Configuración</span>
+        </a>
+
+        <div class="nav-section-label">Almacenamiento</div>
+        <a href="#database" class="nav-item" data-view="database" data-tooltip="Base de Datos Offline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+          </svg>
+          <span>Base de Datos Offline</span>
+        </a>
+      </nav>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="main-wrapper">
+      <!-- HEADER -->
+      <header class="header">
+        <div class="header-left">
+          <button id="sidebar-toggle" class="btn-icon" aria-label="Abrir menú">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <line x1="4" y1="6" x2="20" y2="6"/>
+              <line x1="4" y1="18" x2="20" y2="18"/>
+            </svg>
+          </button>
+          <div class="page-title-box">
+            <h2 id="current-view-title">Dashboard</h2>
+            <div class="breadcrumb" id="current-breadcrumb">Inicio / Dashboard</div>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- BOTÓN REFRESCAR DATA DESDE EXCEL -->
+          <input type="file" id="header-file-excel" accept=".xlsm,.xlsx,.xls" style="display: none;" />
+          <button type="button" class="btn-header-refresh" id="btn-header-refresh-data" title="Refrescar y sincronizar datos desde INFORMACION SAP.xlsm">
+            <svg class="refresh-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            <span>Refrescar Data</span>
+          </button>
+
+          <!-- Última sincronización Excel -->
+          <span id="header-last-excel-sync" style="display: none; font-size: 0.75rem; font-weight: 600; padding: 0.3rem 0.65rem; border-radius: 9999px; background: rgba(14, 165, 233, 0.1); color: #0369a1; border: 1px solid rgba(14, 165, 233, 0.25); white-space: nowrap;" title="Última carga de Excel maestro (también puedes arrastrar y soltar un .xlsm/.xlsx aquí)"></span>
+
+          <!-- DB Status Badge -->
+          <div class="badge-status online" title="IndexedDB lista y conectada">
+            <span class="status-dot"></span>
+            <span class="status-text">IndexedDB Activa</span>
+          </div>
+
+          <!-- USER DROPDOWN ESTILO LARAVEL -->
+          <div class="user-dropdown-wrapper" id="user-dropdown-wrapper">
+            <button type="button" class="user-dropdown-trigger" id="user-dropdown-btn" aria-expanded="false" aria-haspopup="true">
+              <div class="user-dropdown-avatar" id="header-user-avatar">AD</div>
+              <div class="user-dropdown-info">
+                <span class="user-dropdown-name" id="header-user-name">Administrador Principal</span>
+                <span class="user-dropdown-role" id="header-user-badge">Super Administrador</span>
+              </div>
+              <svg class="dropdown-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            <!-- MENÚ DESPLEGABLE FLOTANTE -->
+            <div class="dropdown-menu" id="user-dropdown-menu">
+              <div class="dropdown-header">
+                <div class="dropdown-user-name" id="menu-user-name">Administrador Principal</div>
+                <div class="dropdown-user-email" id="menu-user-email">admin@sistema.local</div>
+                <div style="margin-top: 6px;">
+                  <span class="badge badge-primary" id="menu-user-badge">Super Administrador</span>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <button type="button" class="dropdown-item" id="btn-open-profile">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Mi Perfil</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button type="button" class="dropdown-item dropdown-item-danger" id="btn-logout">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT SECTIONS -->
+      <main class="content" id="main-content">
+        <!-- VISTA: DASHBOARD -->
+        <section id="view-dashboard" class="view-panel active">
+          <!-- Content rendered by DashboardView.js -->
+        </section>
+
+        <!-- VISTA: MÓDULO MPD -->
+        <section id="view-mpd" class="view-panel">
+          <!-- Content rendered by MpdView.js -->
+        </section>
+
+        <!-- VISTA: MÓDULO CIERRE DE SALAS -->
+        <section id="view-cierres" class="view-panel">
+          <!-- Content rendered by CierresView.js -->
+        </section>
+
+        <!-- VISTA: RESUMEN DE PARTOS -->
+        <section id="view-partos" class="view-panel">
+          <!-- Content rendered by PartosView.js -->
+        </section>
+
+        <!-- VISTA: MÓDULO DE DESTETES -->
+        <section id="view-destetes" class="view-panel">
+          <!-- Content rendered by DestetesView.js -->
+        </section>
+
+        <!-- VISTA: MÓDULO DE MATERNIDAD -->
+        <section id="view-maternidad" class="view-panel">
+          <!-- Content rendered by MaternidadView.js -->
+        </section>
+
+        <!-- VISTA: MÓDULO MORTALIDAD DE HEMBRAS -->
+        <section id="view-hembras" class="view-panel">
+          <!-- Content rendered by HembrasView.js -->
+        </section>
+
+        <!-- VISTA: GESTIÓN DE USUARIOS -->
+        <section id="view-users" class="view-panel">
+          <!-- Content rendered by UserView.js -->
+        </section>
+
+        <!-- VISTA: GESTIÓN DE ROLES -->
+        <section id="view-roles" class="view-panel">
+          <!-- Content rendered by RoleView.js -->
+        </section>
+
+        <!-- VISTA: CONFIGURACIÓN Y PARÁMETROS -->
+        <section id="view-configuracion" class="view-panel">
+          <!-- Content rendered by ConfiguracionView.js -->
+        </section>
+
+        <!-- VISTA: BASE DE DATOS / ESTADO OFFLINE -->
+        <section id="view-database" class="view-panel">
+          <!-- Rendered by Database overview -->
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODALES
+       ============================================== -->
+  <!-- Modal Usuario -->
+  <div class="modal" id="user-modal" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="user-modal-title">Nuevo Usuario</h3>
+          <button type="button" class="btn-close modal-close-btn" data-modal="user-modal">&times;</button>
+        </div>
+        <form id="user-form">
+          <input type="hidden" id="user-id">
+          <div class="modal-body">
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label for="user-nombre">Nombre Completo *</label>
+                <input type="text" id="user-nombre" required placeholder="Ej. Juan Pérez">
+              </div>
+              <div class="form-group col-6">
+                <label for="user-username">Nombre de Usuario *</label>
+                <input type="text" id="user-username" required placeholder="Ej. jperez">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label for="user-email">Correo Electrónico *</label>
+                <input type="email" id="user-email" required placeholder="juan@ejemplo.com">
+              </div>
+              <div class="form-group col-6">
+                <label for="user-role">Rol Asignado *</label>
+                <select id="user-role" required>
+                  <!-- Dynamically populated from RoleModel -->
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label for="user-password" id="user-password-label">Contraseña *</label>
+                <input type="password" id="user-password" placeholder="Mínimo 6 caracteres">
+                <small class="form-hint" id="user-password-hint" style="display: none;">Dejar en blanco para mantener la contraseña actual.</small>
+              </div>
+              <div class="form-group col-6">
+                <label for="user-status">Estado de Cuenta</label>
+                <select id="user-status">
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary modal-close-btn" data-modal="user-modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-user">Guardar Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Rol -->
+  <div class="modal" id="role-modal" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="role-modal-title">Nuevo Rol</h3>
+          <button type="button" class="btn-close modal-close-btn" data-modal="role-modal">&times;</button>
+        </div>
+        <form id="role-form">
+          <input type="hidden" id="role-id">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="role-name">Nombre del Rol *</label>
+              <input type="text" id="role-name" required placeholder="Ej. Auditor">
+            </div>
+
+            <div class="form-group">
+              <label for="role-description">Descripción</label>
+              <textarea id="role-description" rows="2" placeholder="Describe el alcance y funciones de este rol"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Permisos del Rol</label>
+              <div class="permissions-grid" id="permissions-container">
+                <!-- Checkboxes populated dynamically -->
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary modal-close-btn" data-modal="role-modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-role">Guardar Rol</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Confirmación Genérico -->
+  <div class="modal" id="confirm-modal" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="confirm-modal-title">Confirmar Acción</h3>
+          <button type="button" class="btn-close modal-close-btn" data-modal="confirm-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="confirm-modal-message">¿Estás seguro de que deseas realizar esta acción?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close-btn" data-modal="confirm-modal">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="btn-confirm-accept">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Mi Perfil (Estilo Laravel Breeze / Jetstream) -->
+  <div class="modal" id="profile-modal" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Información del Perfil</h3>
+          <button type="button" class="btn-close modal-close-btn" data-modal="profile-modal">&times;</button>
+        </div>
+        <form id="profile-form">
+          <div class="modal-body">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-color);">
+              <div class="user-dropdown-avatar" id="profile-modal-avatar" style="width: 52px; height: 52px; font-size: 1.2rem; background: var(--primary);">AD</div>
+              <div>
+                <h4 id="profile-modal-name" style="font-size: 1.1rem; font-weight: 700; margin-bottom: 2px;">Administrador Principal</h4>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span id="profile-modal-username" style="color: var(--text-muted); font-size: 0.85rem;">@admin</span>
+                  <span class="badge badge-primary" id="profile-modal-badge">Super Administrador</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-6">
+                <label for="profile-fullname">Nombre Completo *</label>
+                <input type="text" id="profile-fullname" required>
+              </div>
+              <div class="form-group col-6">
+                <label for="profile-email">Correo Electrónico *</label>
+                <input type="email" id="profile-email" required>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.5rem;">
+              <label for="profile-password">Cambiar Contraseña (Opcional)</label>
+              <input type="password" id="profile-password" placeholder="Mínimo 4 caracteres si deseas cambiarla">
+              <small class="form-hint">Déjalo en blanco para conservar tu contraseña actual.</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary modal-close-btn" data-modal="profile-modal">Cerrar</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-profile">Actualizar Perfil</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENEDOR DE TOASTS / NOTIFICACIONES -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ==============================================
+       SCRIPTS - PATRÓN MVC COMPATIBLE CON FILE://
+       ============================================== -->
+  <!-- Configuración del Sistema & Adaptadores Backend/DB -->
+  <script src="js/config/AppConfig.js"></script>
+  <script src="js/models/adapters/StorageAdapter.js"></script>
+  <script src="js/models/adapters/IndexedDBAdapter.js"></script>
+  <script src="js/models/adapters/ApiAdapter.js"></script>
+
+  <!-- Librería SweetAlert2 Offline, SheetJS Offline & Chart.js Offline -->
+  <script src="js/libs/sweetalert2.all.min.js"></script>
+  <script src="js/libs/xlsx.full.min.js"></script>
+  <script src="js/libs/chart.umd.min.js"></script>
+
+  <!-- Datos Semilla Iniciales (100% Offline) -->
+  <script src="js/data/mpd-seed.js"></script>
+  <script src="js/data/cierres-seed.js"></script>
+  <script src="js/data/partos-seed.js"></script>
+  <script src="js/data/destetes-seed.js"></script>
+  <script src="js/data/pesos-edad-seed.js"></script>
+  <script src="js/data/salas-maternidades-seed.js"></script>
+  <script src="js/data/cierres-mes-seed.js"></script>
+  <script src="js/data/maternidad-seed.js"></script>
+
+  <!-- Utilidades -->
+  <script src="js/utils/CryptoUtil.js"></script>
+  <script src="js/utils/Notification.js"></script>
+  <script src="js/utils/FormatUtil.js"></script>
+
+  <!-- Modelos (M) -->
+  <script src="js/models/Database.js"></script>
+  <script src="js/models/RoleModel.js"></script>
+  <script src="js/models/UserModel.js"></script>
+  <script src="js/models/AuthModel.js"></script>
+  <script src="js/models/MpdModel.js"></script>
+  <script src="js/models/CierresModel.js"></script>
+  <script src="js/models/PartosModel.js"></script>
+  <script src="js/models/DestetesModel.js"></script>
+  <script src="js/models/PesosEdadModel.js"></script>
+  <script src="js/models/SalasMaternidadModel.js"></script>
+  <script src="js/models/CierresMesModel.js"></script>
+  <script src="js/models/PartosSalasModel.js"></script>
+  <script src="js/models/MaternidadModel.js"></script>
+  <script src="js/models/HembrasModel.js"></script>
+
+  <!-- Vistas (V) -->
+  <script src="js/views/LayoutView.js"></script>
+  <script src="js/views/AuthView.js"></script>
+  <script src="js/views/DashboardView.js"></script>
+  <script src="js/views/UserView.js"></script>
+  <script src="js/views/RoleView.js"></script>
+  <script src="js/views/MpdView.js"></script>
+  <script src="js/views/CierresView.js"></script>
+  <script src="js/views/PartosView.js"></script>
+  <script src="js/views/DestetesView.js"></script>
+  <script src="js/views/MaternidadView.js"></script>
+  <script src="js/views/ConfiguracionView.js"></script>
+  <script src="js/views/HembrasView.js"></script>
+
+  <!-- Controladores (C) -->
+  <script src="js/controllers/AuthController.js"></script>
+  <script src="js/controllers/UserController.js"></script>
+  <script src="js/controllers/RoleController.js"></script>
+  <script src="js/controllers/MpdController.js"></script>
+  <script src="js/controllers/CierresController.js"></script>
+  <script src="js/controllers/PartosController.js"></script>
+  <script src="js/controllers/DestetesController.js"></script>
+  <script src="js/controllers/MaternidadController.js"></script>
+  <script src="js/controllers/ConfiguracionController.js"></script>
+  <script src="js/controllers/HembrasController.js"></script>
+  <script src="js/controllers/AppController.js"></script>
+
+  <!-- Punto de entrada -->
+  <script src="js/app.js"></script>
+
+</body>
+</html>
+

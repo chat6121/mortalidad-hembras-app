@@ -1,0 +1,6 @@
+# Ignorar archivos temporales y copias de seguridad de Excel
+~$*
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
