@@ -135,9 +135,6 @@
       font-size: 12px;
       cursor: cell;
       box-sizing: border-box;
-      direction: ltr !important;
-      unicode-bidi: isolate;
-      text-align: left;
     }
 
     #data-table tbody td select {
@@ -922,17 +919,6 @@
     /*__DEFAULT_USERS_START__*/
     const DEFAULT_USERS = [
       {
-        username: "superadmin",
-        password: "admin123",
-        nombre: "Super Administrador",
-        esAdmin: true,
-        puedeAgregar: true,
-        puedeVerGraficas: true,
-        puedeEditar: true,
-        puedeEliminar: true,
-        puedeExportar: true
-      },
-      {
         username: "carlos",
         password: "admin2026",
         nombre: "Carlos Humberto Agüero",
@@ -997,7 +983,6 @@
     let grillaNecesitaRender = true;
     let gasWebAppUrl = DEFAULT_GAS_URL;
     let sincronizando = false;
-    let ultimoResumenSincronizacion = "";
 
     const FILAS_POR_PAGINA = 80;
     let paginaActualTabla = 1;
@@ -1014,10 +999,7 @@
      *  ======================================================================== */
     const CODIGO_GS_COMPLETO = [
       'const SHEET_NAME = "CHAT MUERTES";',
-      'const USERS_SHEET_NAME = "USUARIOS";',
-      '',
       'const HEADERS = ["FECHA", "ID", "GENETICA", "ESTATUS", "CAUSA", "LUGAR", "PARIDAD", "SEMANA", "DIA"];',
-      'const USERS_HEADERS = ["USUARIO", "CLAVE", "NOMBRE", "ES_ADMIN", "PUEDE_AGREGAR", "PUEDE_GRAFICAS", "PUEDE_EDITAR", "PUEDE_ELIMINAR", "PUEDE_EXPORTAR"];',
       '',
       'function obtenerHoja() {',
       '  const ss = SpreadsheetApp.getActiveSpreadsheet();',
@@ -1031,41 +1013,15 @@
       '  return sheet;',
       '}',
       '',
-      'function obtenerHojaUsuarios() {',
-      '  const ss = SpreadsheetApp.getActiveSpreadsheet();',
-      '  let sheet = ss.getSheetByName(USERS_SHEET_NAME);',
-      '  if (!sheet) {',
-      '    sheet = ss.insertSheet(USERS_SHEET_NAME);',
-      '    sheet.appendRow(USERS_HEADERS);',
-      '    sheet.getRange(1, 1, 1, USERS_HEADERS.length).setBackground("#1e293b").setFontColor("#fbbf24").setFontWeight("bold");',
-      '    sheet.setFrozenRows(1);',
-      '    const usuariosIniciales = [',
-      '      ["superadmin", "admin123", "Super Administrador", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],',
-      '      ["carlos", "admin2026", "Carlos Humberto Agüero", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],',
-      '      ["admin", "admin2026", "Administrador Maestro", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],',
-      '      ["operador", "1234", "Operador de Granja", "FALSE", "TRUE", "TRUE", "FALSE", "FALSE", "FALSE"]',
-      '    ];',
-      '    sheet.getRange(2, 1, usuariosIniciales.length, USERS_HEADERS.length).setValues(usuariosIniciales);',
-      '  }',
-      '  return sheet;',
-      '}',
-      '',
       'function doGet(e) {',
-      '  if (e && e.parameter) {',
-      '    if (e.parameter.action === "readUsers") {',
-      '      const payload = JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() });',
-      '      if (e.parameter.callback) {',
-      '        return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);',
-      '      }',
-      '      return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);',
+      '  if (e && e.parameter && e.parameter.action === "read") {',
+      '    const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet() });',
+      '    if (e.parameter.callback) {',
+      '      return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")',
+      '        .setMimeType(ContentService.MimeType.JAVASCRIPT);',
       '    }',
-      '    if (e.parameter.action === "read") {',
-      '      const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet(), usuarios: leerUsuariosSheet() });',
-      '      if (e.parameter.callback) {',
-      '        return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")").setMimeType(ContentService.MimeType.JAVASCRIPT);',
-      '      }',
-      '      return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);',
-      '    }',
+      '    return ContentService.createTextOutput(payload)',
+      '      .setMimeType(ContentService.MimeType.JSON);',
       '  }',
       '  try {',
       '    return HtmlService.createHtmlOutputFromFile("Index")',
@@ -1073,7 +1029,8 @@
       '      .addMetaTag("viewport", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")',
       '      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);',
       '  } catch (err) {',
-      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet(), usuarios: leerUsuariosSheet() })).setMimeType(ContentService.MimeType.JSON);',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
       '  }',
       '}',
       '',
@@ -1082,24 +1039,16 @@
       '  lock.waitLock(25000);',
       '  try {',
       '    const payload = JSON.parse(e.postData.contents || "{}");',
-      '    if (payload.action === "saveUser" && payload.usuario) {',
-      '      guardarOUsuarioSheet(payload.usuario, payload.origUsername);',
-      '      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() })).setMimeType(ContentService.MimeType.JSON);',
-      '    } else if (payload.action === "deleteUser" && payload.username) {',
-      '      eliminarUsuarioSheet(payload.username);',
-      '      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() })).setMimeType(ContentService.MimeType.JSON);',
-      '    } else if (payload.action === "saveAllUsers" && Array.isArray(payload.usuarios)) {',
-      '      guardarTodosUsuariosSheet(payload.usuarios);',
-      '      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() })).setMimeType(ContentService.MimeType.JSON);',
-      '    }',
       '    if (payload.action === "saveAll" && Array.isArray(payload.registros)) {',
       '      guardarRegistrosSheet(payload.registros);',
       '    } else if (payload.action === "append" && payload.registro) {',
       '      agregarFilaSheet(payload.registro);',
       '    }',
-      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() })).setMimeType(ContentService.MimeType.JSON);',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
       '  } catch (error) {',
-      '    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);',
+      '    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: error.toString() }))',
+      '      .setMimeType(ContentService.MimeType.JSON);',
       '  } finally {',
       '    lock.releaseLock();',
       '  }',
@@ -1147,95 +1096,6 @@
       '    r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""',
       '  ]);',
       '  return leerRegistrosSheet();',
-      '}',
-      '',
-      'function leerUsuariosSheet() {',
-      '  const sheet = obtenerHojaUsuarios();',
-      '  const lastRow = sheet.getLastRow();',
-      '  if (lastRow <= 1) return [];',
-      '  const values = sheet.getRange(2, 1, lastRow - 1, USERS_HEADERS.length).getDisplayValues();',
-      '  return values.map(r => ({',
-      '    username: String(r[0] || "").trim().toLowerCase(),',
-      '    password: String(r[1] || "").trim(),',
-      '    nombre: String(r[2] || "").trim(),',
-      '    esAdmin: String(r[3] || "").toUpperCase() === "TRUE",',
-      '    puedeAgregar: String(r[4] || "").toUpperCase() === "TRUE",',
-      '    puedeVerGraficas: String(r[5] || "").toUpperCase() === "TRUE",',
-      '    puedeEditar: String(r[6] || "").toUpperCase() === "TRUE",',
-      '    puedeEliminar: String(r[7] || "").toUpperCase() === "TRUE",',
-      '    puedeExportar: String(r[8] || "").toUpperCase() === "TRUE"',
-      '  })).filter(u => u.username);',
-      '}',
-      '',
-      'function guardarOUsuarioSheet(u, origUsername) {',
-      '  const sheet = obtenerHojaUsuarios();',
-      '  const lastRow = sheet.getLastRow();',
-      '  const searchKey = (origUsername || u.username || "").toLowerCase();',
-      '  let targetRow = -1;',
-      '  if (lastRow > 1) {',
-      '    const usernames = sheet.getRange(2, 1, lastRow - 1, 1).getValues();',
-      '    for (let i = 0; i < usernames.length; i++) {',
-      '      if (String(usernames[i][0]).trim().toLowerCase() === searchKey) {',
-      '        targetRow = i + 2;',
-      '        break;',
-      '      }',
-      '    }',
-      '  }',
-      '  const rowData = [',
-      '    String(u.username || "").trim().toLowerCase(),',
-      '    String(u.password || "").trim(),',
-      '    String(u.nombre || "").trim(),',
-      '    u.esAdmin ? "TRUE" : "FALSE",',
-      '    u.puedeAgregar ? "TRUE" : "FALSE",',
-      '    u.puedeVerGraficas ? "TRUE" : "FALSE",',
-      '    u.puedeEditar ? "TRUE" : "FALSE",',
-      '    u.puedeEliminar ? "TRUE" : "FALSE",',
-      '    u.puedeExportar ? "TRUE" : "FALSE"',
-      '  ];',
-      '  if (targetRow > 0) {',
-      '    sheet.getRange(targetRow, 1, 1, USERS_HEADERS.length).setValues([rowData]);',
-      '  } else {',
-      '    sheet.appendRow(rowData);',
-      '  }',
-      '  return leerUsuariosSheet();',
-      '}',
-      '',
-      'function eliminarUsuarioSheet(username) {',
-      '  const sheet = obtenerHojaUsuarios();',
-      '  const lastRow = sheet.getLastRow();',
-      '  if (lastRow <= 1) return [];',
-      '  const uTarget = String(username).trim().toLowerCase();',
-      '  const usernames = sheet.getRange(2, 1, lastRow - 1, 1).getValues();',
-      '  for (let i = 0; i < usernames.length; i++) {',
-      '    if (String(usernames[i][0]).trim().toLowerCase() === uTarget) {',
-      '      sheet.deleteRow(i + 2);',
-      '      break;',
-      '    }',
-      '  }',
-      '  return leerUsuariosSheet();',
-      '}',
-      '',
-      'function guardarTodosUsuariosSheet(usuarios) {',
-      '  const sheet = obtenerHojaUsuarios();',
-      '  const lastRow = sheet.getLastRow();',
-      '  if (lastRow > 1) {',
-      '    sheet.getRange(2, 1, lastRow - 1, USERS_HEADERS.length).clearContent();',
-      '  }',
-      '  if (usuarios.length > 0) {',
-      '    const filas = usuarios.map(u => [',
-      '      String(u.username || "").trim().toLowerCase(),',
-      '      String(u.password || "").trim(),',
-      '      String(u.nombre || "").trim(),',
-      '      u.esAdmin ? "TRUE" : "FALSE",',
-      '      u.puedeAgregar ? "TRUE" : "FALSE",',
-      '      u.puedeVerGraficas ? "TRUE" : "FALSE",',
-      '      u.puedeEditar ? "TRUE" : "FALSE",',
-      '      u.puedeEliminar ? "TRUE" : "FALSE",',
-      '      u.puedeExportar ? "TRUE" : "FALSE"',
-      '    ]);',
-      '    sheet.getRange(2, 1, filas.length, USERS_HEADERS.length).setValues(filas);',
-      '  }',
-      '  return leerUsuariosSheet();',
       '}'
     ].join('\n');
 
@@ -1243,67 +1103,23 @@
      *  GESTIÓN DE AUTENTICACIÓN, USUARIOS Y PRIVILEGIOS
      *  ======================================================================== */
     async function inicializarUsuariosDB() {
-      // 1. Obtener lista de usuarios de la nube si existe conexión configurada
-      let remotos = null;
-      if (ES_ENTORNO_GAS || gasWebAppUrl) {
-        try {
-          if (ES_ENTORNO_GAS) {
-            remotos = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet());
-          } else {
-            const sep = gasWebAppUrl.includes("?") ? "&" : "?";
-            const urlUsers = `${gasWebAppUrl}${sep}action=readUsers&t=${Date.now()}`;
-            const res = await fetch(urlUsers, { method: "GET", mode: "cors", credentials: "omit" });
-            if (res.ok) {
-              const j = await res.json();
-              if (j.ok && Array.isArray(j.usuarios)) remotos = j.usuarios;
-            }
-          }
-        } catch (_) {}
-      }
-
-      // Si vinieron de la nube, ellos son la verdad absoluta: guardarlos en IndexedDB
-      if (Array.isArray(remotos) && remotos.length > 0) {
-        for (const ru of remotos) {
-          if (ru.username) await db.usuarios.put(ru);
-        }
-      }
-
-      // 2. Obtener usuarios locales y lista de eliminados
-      let guardados = await db.usuarios.toArray();
+      // Obtener usuarios guardados y lista de eliminados
+      const guardados = await db.usuarios.toArray();
       const eliminadosDoc = await db.config.get("usuarios_eliminados");
       const eliminados = new Set(Array.isArray(eliminadosDoc?.valor) ? eliminadosDoc.valor.map(u => String(u).toLowerCase()) : []);
-      eliminados.delete("superadmin");
 
-      let usuariosMap = new Map();
-
-      // Cargar los predeterminados de fábrica (garantizando superadmin)
-      DEFAULT_USERS.forEach(u => {
-        if (!eliminados.has(u.username.toLowerCase())) {
-          usuariosMap.set(u.username.toLowerCase(), u);
-        }
-      });
-
-      // Sobrescribir / Añadir los guardados en base local
-      guardados.forEach(u => {
-        if (u.username && !eliminados.has(u.username.toLowerCase())) {
-          usuariosMap.set(u.username.toLowerCase(), u);
-        }
-      });
-
-      // Garantizar explícitamente siempre la cuenta superadmin
-      const superAdminPreset = DEFAULT_USERS.find(u => u.username === "superadmin");
-      if (superAdminPreset) {
-        usuariosMap.set("superadmin", superAdminPreset);
-        await db.usuarios.put(superAdminPreset);
+      if (guardados.length === 0) {
+        // Primera ejecución: cargar los predeterminados que no hayan sido marcados como eliminados
+        listaUsuarios = DEFAULT_USERS.filter(u => !eliminados.has(u.username.toLowerCase()));
+        await db.usuarios.bulkPut(listaUsuarios);
+      } else {
+        // Ya hay usuarios en la base de datos local: respetamos exactamente lo que el usuario guardó/eliminó
+        listaUsuarios = guardados.filter(u => !eliminados.has(u.username.toLowerCase()));
       }
-
-      listaUsuarios = Array.from(usuariosMap.values());
-      await db.usuarios.bulkPut(listaUsuarios);
     }
 
     function tienePermiso(permiso) {
       if (!usuarioActual) return false;
-      if (usuarioActual.username === "superadmin") return true;
       if (usuarioActual.esAdmin) return true;
       return Boolean(usuarioActual[permiso]);
     }
@@ -1545,30 +1361,19 @@
 
       renderizarTablaUsuariosAdmin();
       limpiarFormularioUsuario();
-      mostrarToast(`Usuario "${username}" guardado localmente.`, "success");
-
-      // Sincronizar en la nube con Google Sheets para que se actualice en todos los teléfonos y la web
-      await enviarUsuarioASheets(nuevo, origUsername);
+      mostrarToast(`Usuario "${username}" guardado correctamente.`, "success");
     }
 
     async function eliminarUsuarioAdmin(username) {
       if (!tienePermiso("esAdmin")) return;
       const uLower = username.toLowerCase();
-      const esSuperAdmin = usuarioActual && usuarioActual.username === "superadmin";
-
-      // Ni siquiera superadmin puede eliminarse a sí mismo para no perder acceso total
-      if (uLower === "superadmin") {
-        return mostrarToast("No se puede eliminar la cuenta maestra de Super Administrador.", "warning");
-      }
-
-      // Los administradores estándar no pueden eliminar admin ni carlos, pero superadmin sí puede con cualquier usuario
-      if (!esSuperAdmin && (uLower === "carlos" || uLower === "admin")) {
-        return mostrarToast("Solo el Super Administrador ('superadmin') puede eliminar esta cuenta administradora.", "warning");
+      if (uLower === "carlos" || uLower === "admin") {
+        return mostrarToast("No puedes eliminar la cuenta maestra de Administrador.", "warning");
       }
 
       const confirm = await Swal.fire({
         title: `¿Eliminar usuario "${username}"?`,
-        text: "Este usuario se borrará definitivamente de este equipo y de la nube (Google Sheets).",
+        text: "Este usuario ya no podrá iniciar sesión y se borrará definitivamente.",
         icon: "warning",
         showCancelButton: true,
         confirmButtonText: "Sí, eliminar",
@@ -1583,7 +1388,7 @@
         // Eliminar de IndexedDB
         await db.usuarios.delete(uLower);
 
-        // Guardar en la lista negra persistente para que no reaparezca desde DEFAULT_USERS locales
+        // Guardar en la lista negra persistente para que no reaparezca desde DEFAULT_USERS
         const eliminadosDoc = await db.config.get("usuarios_eliminados");
         const eliminados = new Set(Array.isArray(eliminadosDoc?.valor) ? eliminadosDoc.valor.map(u => String(u).toLowerCase()) : []);
         eliminados.add(uLower);
@@ -1591,10 +1396,7 @@
 
         listaUsuarios = listaUsuarios.filter(u => u.username.toLowerCase() !== uLower);
         renderizarTablaUsuariosAdmin();
-        mostrarToast("Usuario eliminado localmente.", "info");
-
-        // Eliminar también en Google Sheets
-        await eliminarUsuarioEnSheets(uLower);
+        mostrarToast("Usuario eliminado definitivamente.", "info");
       }
     }
 
@@ -1602,13 +1404,9 @@
       const tbody = document.getElementById("users-table-tbody");
       if (!tbody) return;
 
-      const esSuperAdmin = usuarioActual && usuarioActual.username === "superadmin";
-
       tbody.innerHTML = listaUsuarios.map(u => {
         const badges = [];
-        if (u.username === "superadmin") {
-          badges.push(`<span class="px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30 font-bold">SUPERADMIN</span>`);
-        } else if (u.esAdmin) {
+        if (u.esAdmin) {
           badges.push(`<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">ADMIN TOTAL</span>`);
         } else {
           if (u.puedeAgregar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30">Ingresar</span>`);
@@ -1618,19 +1416,9 @@
           if (u.puedeExportar) badges.push(`<span class="px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30">Exportar Excel</span>`);
         }
 
-        // Determinar botón de eliminación: superadmin puede borrar a todos salvo a sí mismo
-        let puedeBorrarEste = false;
-        if (u.username !== "superadmin") {
-          if (esSuperAdmin) {
-            puedeBorrarEste = true;
-          } else if (u.username !== "carlos" && u.username !== "admin") {
-            puedeBorrarEste = true;
-          }
-        }
-
-        const btnEliminar = puedeBorrarEste
-          ? `<button type="button" onclick="eliminarUsuarioAdmin('${u.username}')" class="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded border border-rose-500/30">Borrar</button>`
-          : "";
+        const btnEliminar = (u.username === "carlos" || u.username === "admin")
+          ? ""
+          : `<button type="button" onclick="eliminarUsuarioAdmin('${u.username}')" class="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded border border-rose-500/30">Borrar</button>`;
 
         return `
           <tr class="hover:bg-slate-900/60">
@@ -1639,7 +1427,7 @@
             <td class="py-2 px-2 font-mono text-emerald-300">${u.password}</td>
             <td class="py-2 px-2"><div class="flex flex-wrap gap-1">${badges.join("")}</div></td>
             <td class="py-2 px-2 text-right space-x-1 whitespace-nowrap">
-              <button type="button" onclick="cargarUsuarioEnFormulario('${u.username}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded border border-slate-700">Editar</button>
+              <button type="button" onclick="cargarUsuarioEnFormulario('${u.username}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded border border-slate-700">Editar Permisos</button>
               ${btnEliminar}
             </td>
           </tr>
@@ -1904,13 +1692,14 @@
 
       try {
         let registrosRemotos = null;
-        let usuariosRemotos = null;
 
         if (ES_ENTORNO_GAS) {
-          const resUsers = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet()).catch(() => []);
-          const resRegs = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerRegistrosSheet()).catch(() => []);
-          usuariosRemotos = resUsers || [];
-          registrosRemotos = resRegs || [];
+          registrosRemotos = await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .leerRegistrosSheet();
+          });
         } else {
           const sep = gasWebAppUrl.includes("?") ? "&" : "?";
           const urlLectura = `${gasWebAppUrl}${sep}action=read&t=${Date.now()}`;
@@ -1926,38 +1715,14 @@
             const json = await res.json();
             if (!json.ok) throw new Error(json.error || "Error al leer Google Sheets");
             registrosRemotos = json.registros || [];
-            usuariosRemotos = json.usuarios || [];
           } catch (fetchErr) {
             const jsonpData = await leerSheetsPorJSONP(gasWebAppUrl);
             if (jsonpData && jsonpData.ok) {
               registrosRemotos = jsonpData.registros || [];
-              usuariosRemotos = jsonpData.usuarios || [];
             } else {
               throw fetchErr;
             }
           }
-        }
-
-        // Sincronizar Usuarios desde la Nube (si vinieron en la respuesta)
-        if (Array.isArray(usuariosRemotos) && usuariosRemotos.length > 0) {
-          for (const u of usuariosRemotos) {
-            const uLower = String(u.username || "").toLowerCase();
-            if (uLower) {
-              await db.usuarios.put(u);
-            }
-          }
-          // Recargar lista en memoria directamente desde la base local actualizada
-          listaUsuarios = await db.usuarios.toArray();
-          
-          // Si el usuario actual está en sesión, refrescar sus permisos en vivo
-          if (usuarioActual) {
-            const act = listaUsuarios.find(u => u.username.toLowerCase() === usuarioActual.username.toLowerCase());
-            if (act) {
-              usuarioActual = act;
-              aplicarPermisosInterfaz();
-            }
-          }
-          renderizarTablaUsuariosAdmin();
         }
 
         if (Array.isArray(registrosRemotos)) {
@@ -1974,18 +1739,6 @@
             dia: r.dia || "",
             guardado: true
           }));
-
-          // Obtener fechas únicas registradas para notificar a los usuarios
-          const fechasValidas = normalizados.map(r => r.fecha).filter(Boolean);
-          fechasValidas.sort();
-          const ultimaFecha = fechasValidas.length > 0 ? fechasValidas[fechasValidas.length - 1] : "";
-          const totalRegs = normalizados.length;
-          const nuevoResumen = `${totalRegs}_${ultimaFecha}`;
-
-          // Detectar si hay datos nuevos o si es el primer inicio para notificar la fecha actualizada
-          const esPrimeraVez = !ultimoResumenSincronizacion;
-          const huboActualizacion = ultimoResumenSincronizacion && (ultimoResumenSincronizacion !== nuevoResumen);
-          ultimoResumenSincronizacion = nuevoResumen;
 
           await db.datos.clear();
           if (normalizados.length > 0) {
@@ -2005,13 +1758,8 @@
           }
 
           actualizarIndicadorNube("conectado", `Google Sheets (${normalizados.length} reg.)`);
-
-          if (huboActualizacion) {
-            mostrarToast(`🔔 Datos actualizados desde la nube: ${totalRegs} registros (última fecha: ${ultimaFecha || 'N/D'}).`, "info");
-          } else if (mostrarAlerta) {
-            mostrarToast(`Sincronizado con Google Sheets (${totalRegs} registros. Fecha más reciente: ${ultimaFecha || 'N/D'}).`, "success");
-          } else if (esPrimeraVez && totalRegs > 0) {
-            mostrarToast(`Conectado a la nube: Información cargada al día (${ultimaFecha || 'registros listos'}).`, "success");
+          if (mostrarAlerta) {
+            mostrarToast(`Sincronizado con Google Sheets (${normalizados.length} registros).`, "success");
           }
         }
       } catch (err) {
@@ -2021,84 +1769,6 @@
         }
       } finally {
         sincronizando = false;
-      }
-    }
-
-    async function enviarUsuarioASheets(usuario, origUsername) {
-      if (!ES_ENTORNO_GAS && !gasWebAppUrl) return false;
-      try {
-        if (ES_ENTORNO_GAS) {
-          await new Promise((resolve, reject) => {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .guardarOUsuarioSheet(usuario, origUsername);
-          });
-        } else {
-          const payloadStr = JSON.stringify({ action: "saveUser", usuario, origUsername });
-          try {
-            await fetch(gasWebAppUrl, {
-              method: "POST",
-              mode: "cors",
-              credentials: "omit",
-              redirect: "follow",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: payloadStr
-            });
-          } catch (_) {
-            await fetch(gasWebAppUrl, {
-              method: "POST",
-              mode: "no-cors",
-              credentials: "omit",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: payloadStr
-            });
-          }
-        }
-        mostrarToast(`Usuario "${usuario.username}" sincronizado en la nube con Google Sheets.`, "success");
-        return true;
-      } catch (e) {
-        mostrarToast("Usuario guardado localmente (Fallo al subir a Google Sheets).", "warning");
-        return false;
-      }
-    }
-
-    async function eliminarUsuarioEnSheets(username) {
-      if (!ES_ENTORNO_GAS && !gasWebAppUrl) return false;
-      try {
-        if (ES_ENTORNO_GAS) {
-          await new Promise((resolve, reject) => {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .eliminarUsuarioSheet(username);
-          });
-        } else {
-          const payloadStr = JSON.stringify({ action: "deleteUser", username });
-          try {
-            await fetch(gasWebAppUrl, {
-              method: "POST",
-              mode: "cors",
-              credentials: "omit",
-              redirect: "follow",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: payloadStr
-            });
-          } catch (_) {
-            await fetch(gasWebAppUrl, {
-              method: "POST",
-              mode: "no-cors",
-              credentials: "omit",
-              headers: { "Content-Type": "text/plain;charset=utf-8" },
-              body: payloadStr
-            });
-          }
-        }
-        mostrarToast(`Usuario "${username}" eliminado de la nube en Google Sheets.`, "success");
-        return true;
-      } catch (e) {
-        mostrarToast("Usuario eliminado localmente (Fallo al borrar de Google Sheets).", "warning");
-        return false;
       }
     }
 
@@ -2462,7 +2132,6 @@
             input.value = fila[campo] || "";
             input.autocomplete = "off";
             input.spellcheck = false;
-            input.setAttribute("dir", "ltr");
           }
 
           if (celdaBloqueada) {
@@ -2579,6 +2248,7 @@
         const input = td.firstElementChild;
         if (!input.disabled) {
           input.focus();
+          if (input.tagName === "INPUT" && input.type !== "date") input.select();
         }
         input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
         document.getElementById("cell-ref").textContent = `${LETRAS[col]}${fila + 1}`;
@@ -2643,11 +2313,6 @@
           guardado: true
         }));
 
-        const fechasGuardadas = aGuardar.map(r => r.fecha).filter(Boolean);
-        fechasGuardadas.sort();
-        const ultimaFechaGuardada = fechasGuardadas.length > 0 ? fechasGuardadas[fechasGuardadas.length - 1] : "";
-        ultimoResumenSincronizacion = `${aGuardar.length}_${ultimaFechaGuardada}`;
-
         await db.datos.clear();
         if (aGuardar.length > 0) {
           await db.datos.bulkPut(aGuardar);
@@ -2661,16 +2326,15 @@
         document.getElementById("unsaved-badge").classList.add("hidden");
         renderizarGrilla();
 
-        const detalleFecha = ultimaFechaGuardada ? ` (Última fecha: ${ultimaFechaGuardada})` : "";
         if (ES_ENTORNO_GAS || gasWebAppUrl) {
           const okNube = await enviarTodoASheets(aGuardar);
           if (okNube) {
-            mostrarToast(`✅ ${aGuardar.length} registros guardados y sincronizados en la nube${detalleFecha}.`, "success");
+            mostrarToast(`${aGuardar.length} registros guardados y sincronizados en Google Sheets.`, "success");
           } else {
-            mostrarToast(`⚠️ Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
+            mostrarToast(`Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
           }
         } else {
-          mostrarToast(`✅ ${aGuardar.length} registros guardados localmente${detalleFecha}.`, "success");
+          mostrarToast(`${aGuardar.length} registros guardados localmente.`, "success");
         }
       } catch (err) {
         mostrarToast("Error al guardar: " + err.message, "error");

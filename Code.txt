@@ -1,8 +1,5 @@
 const SHEET_NAME = "CHAT MUERTES";
-const USERS_SHEET_NAME = "USUARIOS";
-
 const HEADERS = ["FECHA", "ID", "GENETICA", "ESTATUS", "CAUSA", "LUGAR", "PARIDAD", "SEMANA", "DIA"];
-const USERS_HEADERS = ["USUARIO", "CLAVE", "NOMBRE", "ES_ADMIN", "PUEDE_AGREGAR", "PUEDE_GRAFICAS", "PUEDE_EDITAR", "PUEDE_ELIMINAR", "PUEDE_EXPORTAR"];
 
 function obtenerHoja() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -19,59 +16,23 @@ function obtenerHoja() {
   return sheet;
 }
 
-function obtenerHojaUsuarios() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(USERS_SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(USERS_SHEET_NAME);
-    sheet.appendRow(USERS_HEADERS);
-    sheet.getRange(1, 1, 1, USERS_HEADERS.length)
-      .setBackground("#1e293b")
-      .setFontColor("#fbbf24")
-      .setFontWeight("bold");
-    sheet.setFrozenRows(1);
-
-    // Usuarios iniciales por defecto con superadministrador
-    const usuariosIniciales = [
-      ["superadmin", "admin123", "Super Administrador", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],
-      ["carlos", "admin2026", "Carlos Humberto Agüero", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],
-      ["admin", "admin2026", "Administrador Maestro", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE", "TRUE"],
-      ["operador", "1234", "Operador de Granja", "FALSE", "TRUE", "TRUE", "FALSE", "FALSE", "FALSE"]
-    ];
-    sheet.getRange(2, 1, usuariosIniciales.length, USERS_HEADERS.length).setValues(usuariosIniciales);
-  }
-  return sheet;
-}
-
 function doGet(e) {
-  if (e && e.parameter) {
-    // Lectura de Usuarios
-    if (e.parameter.action === "readUsers") {
-      const payload = JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() });
-      if (e.parameter.callback) {
-        return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")
-          .setMimeType(ContentService.MimeType.JAVASCRIPT);
-      }
-      return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
+  if (e && e.parameter && e.parameter.action === "read") {
+    const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet() });
+    if (e.parameter.callback) {
+      return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
-    // Lectura de Registros de Muertes
-    if (e.parameter.action === "read") {
-      const payload = JSON.stringify({ ok: true, registros: leerRegistrosSheet(), usuarios: leerUsuariosSheet() });
-      if (e.parameter.callback) {
-        return ContentService.createTextOutput(e.parameter.callback + "(" + payload + ")")
-          .setMimeType(ContentService.MimeType.JAVASCRIPT);
-      }
-      return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
-    }
+    return ContentService.createTextOutput(payload)
+      .setMimeType(ContentService.MimeType.JSON);
   }
-
   try {
     return HtmlService.createHtmlOutputFromFile("Index")
       .setTitle("Mortalidad de Hembras - Panel de Control")
       .addMetaTag("viewport", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet(), usuarios: leerUsuariosSheet() }))
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -81,29 +42,11 @@ function doPost(e) {
   lock.waitLock(25000);
   try {
     const payload = JSON.parse(e.postData.contents || "{}");
-
-    // Acciones de Usuarios
-    if (payload.action === "saveUser" && payload.usuario) {
-      guardarOUsuarioSheet(payload.usuario, payload.origUsername);
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() }))
-        .setMimeType(ContentService.MimeType.JSON);
-    } else if (payload.action === "deleteUser" && payload.username) {
-      eliminarUsuarioSheet(payload.username);
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() }))
-        .setMimeType(ContentService.MimeType.JSON);
-    } else if (payload.action === "saveAllUsers" && Array.isArray(payload.usuarios)) {
-      guardarTodosUsuariosSheet(payload.usuarios);
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, usuarios: leerUsuariosSheet() }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Acciones de Registros de Muertes
     if (payload.action === "saveAll" && Array.isArray(payload.registros)) {
       guardarRegistrosSheet(payload.registros);
     } else if (payload.action === "append" && payload.registro) {
       agregarFilaSheet(payload.registro);
     }
-
     return ContentService.createTextOutput(JSON.stringify({ ok: true, registros: leerRegistrosSheet() }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
@@ -156,98 +99,4 @@ function agregarFilaSheet(r) {
     r.causa || "", r.lugar || "", r.paridad || "", r.semana || "", r.dia || ""
   ]);
   return leerRegistrosSheet();
-}
-
-// ==================== GESTIÓN REMOTA DE USUARIOS ====================
-
-function leerUsuariosSheet() {
-  const sheet = obtenerHojaUsuarios();
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return [];
-  const values = sheet.getRange(2, 1, lastRow - 1, USERS_HEADERS.length).getDisplayValues();
-  return values.map(r => ({
-    username: String(r[0] || "").trim().toLowerCase(),
-    password: String(r[1] || "").trim(),
-    nombre: String(r[2] || "").trim(),
-    esAdmin: String(r[3] || "").toUpperCase() === "TRUE",
-    puedeAgregar: String(r[4] || "").toUpperCase() === "TRUE",
-    puedeVerGraficas: String(r[5] || "").toUpperCase() === "TRUE",
-    puedeEditar: String(r[6] || "").toUpperCase() === "TRUE",
-    puedeEliminar: String(r[7] || "").toUpperCase() === "TRUE",
-    puedeExportar: String(r[8] || "").toUpperCase() === "TRUE"
-  })).filter(u => u.username);
-}
-
-function guardarOUsuarioSheet(u, origUsername) {
-  const sheet = obtenerHojaUsuarios();
-  const lastRow = sheet.getLastRow();
-  const searchKey = (origUsername || u.username || "").toLowerCase();
-  
-  let targetRow = -1;
-  if (lastRow > 1) {
-    const usernames = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (let i = 0; i < usernames.length; i++) {
-      if (String(usernames[i][0]).trim().toLowerCase() === searchKey) {
-        targetRow = i + 2;
-        break;
-      }
-    }
-  }
-
-  const rowData = [
-    String(u.username || "").trim().toLowerCase(),
-    String(u.password || "").trim(),
-    String(u.nombre || "").trim(),
-    u.esAdmin ? "TRUE" : "FALSE",
-    u.puedeAgregar ? "TRUE" : "FALSE",
-    u.puedeVerGraficas ? "TRUE" : "FALSE",
-    u.puedeEditar ? "TRUE" : "FALSE",
-    u.puedeEliminar ? "TRUE" : "FALSE",
-    u.puedeExportar ? "TRUE" : "FALSE"
-  ];
-
-  if (targetRow > 0) {
-    sheet.getRange(targetRow, 1, 1, USERS_HEADERS.length).setValues([rowData]);
-  } else {
-    sheet.appendRow(rowData);
-  }
-  return leerUsuariosSheet();
-}
-
-function eliminarUsuarioSheet(username) {
-  const sheet = obtenerHojaUsuarios();
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return [];
-  const uTarget = String(username).trim().toLowerCase();
-  const usernames = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  for (let i = 0; i < usernames.length; i++) {
-    if (String(usernames[i][0]).trim().toLowerCase() === uTarget) {
-      sheet.deleteRow(i + 2);
-      break;
-    }
-  }
-  return leerUsuariosSheet();
-}
-
-function guardarTodosUsuariosSheet(usuarios) {
-  const sheet = obtenerHojaUsuarios();
-  const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.getRange(2, 1, lastRow - 1, USERS_HEADERS.length).clearContent();
-  }
-  if (usuarios.length > 0) {
-    const filas = usuarios.map(u => [
-      String(u.username || "").trim().toLowerCase(),
-      String(u.password || "").trim(),
-      String(u.nombre || "").trim(),
-      u.esAdmin ? "TRUE" : "FALSE",
-      u.puedeAgregar ? "TRUE" : "FALSE",
-      u.puedeVerGraficas ? "TRUE" : "FALSE",
-      u.puedeEditar ? "TRUE" : "FALSE",
-      u.puedeEliminar ? "TRUE" : "FALSE",
-      u.puedeExportar ? "TRUE" : "FALSE"
-    ]);
-    sheet.getRange(2, 1, filas.length, USERS_HEADERS.length).setValues(filas);
-  }
-  return leerUsuariosSheet();
 }
