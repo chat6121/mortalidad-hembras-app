@@ -135,6 +135,8 @@
       font-size: 12px;
       cursor: cell;
       box-sizing: border-box;
+      direction: ltr !important;
+      text-align: left;
     }
 
     #data-table tbody td select {
@@ -983,6 +985,7 @@
     let grillaNecesitaRender = true;
     let gasWebAppUrl = DEFAULT_GAS_URL;
     let sincronizando = false;
+    let ultimoHashSincronizacion = "";
 
     const FILAS_POR_PAGINA = 80;
     let paginaActualTabla = 1;
@@ -1103,18 +1106,26 @@
      *  GESTIÓN DE AUTENTICACIÓN, USUARIOS Y PRIVILEGIOS
      *  ======================================================================== */
     async function inicializarUsuariosDB() {
-      // Obtener usuarios guardados y lista de eliminados
+      // 1. Cargar usuarios locales almacenados
       const guardados = await db.usuarios.toArray();
       const eliminadosDoc = await db.config.get("usuarios_eliminados");
       const eliminados = new Set(Array.isArray(eliminadosDoc?.valor) ? eliminadosDoc.valor.map(u => String(u).toLowerCase()) : []);
 
+      let mapUsuarios = new Map();
+      DEFAULT_USERS.forEach(u => {
+        if (!eliminados.has(u.username.toLowerCase())) {
+          mapUsuarios.set(u.username.toLowerCase(), u);
+        }
+      });
+      guardados.forEach(u => {
+        if (u.username && !eliminados.has(u.username.toLowerCase())) {
+          mapUsuarios.set(u.username.toLowerCase(), u);
+        }
+      });
+
+      listaUsuarios = Array.from(mapUsuarios.values());
       if (guardados.length === 0) {
-        // Primera ejecución: cargar los predeterminados que no hayan sido marcados como eliminados
-        listaUsuarios = DEFAULT_USERS.filter(u => !eliminados.has(u.username.toLowerCase()));
         await db.usuarios.bulkPut(listaUsuarios);
-      } else {
-        // Ya hay usuarios en la base de datos local: respetamos exactamente lo que el usuario guardó/eliminó
-        listaUsuarios = guardados.filter(u => !eliminados.has(u.username.toLowerCase()));
       }
     }
 
@@ -1361,7 +1372,10 @@
 
       renderizarTablaUsuariosAdmin();
       limpiarFormularioUsuario();
-      mostrarToast(`Usuario "${username}" guardado correctamente.`, "success");
+      mostrarToast(`Usuario "${username}" guardado localmente.`, "success");
+
+      // Sincronizar en la nube con Google Sheets
+      await enviarUsuarioASheets(nuevo, origUsername);
     }
 
     async function eliminarUsuarioAdmin(username) {
@@ -1396,7 +1410,10 @@
 
         listaUsuarios = listaUsuarios.filter(u => u.username.toLowerCase() !== uLower);
         renderizarTablaUsuariosAdmin();
-        mostrarToast("Usuario eliminado definitivamente.", "info");
+        mostrarToast("Usuario eliminado localmente.", "info");
+
+        // Eliminar en Google Sheets
+        await eliminarUsuarioEnSheets(uLower);
       }
     }
 
@@ -1692,8 +1709,12 @@
 
       try {
         let registrosRemotos = null;
+        let usuariosRemotos = null;
 
         if (ES_ENTORNO_GAS) {
+          try {
+            usuariosRemotos = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet());
+          } catch (_) {}
           registrosRemotos = await new Promise((resolve, reject) => {
             google.script.run
               .withSuccessHandler(resolve)
@@ -1715,16 +1736,37 @@
             const json = await res.json();
             if (!json.ok) throw new Error(json.error || "Error al leer Google Sheets");
             registrosRemotos = json.registros || [];
+            usuariosRemotos = json.usuarios || [];
           } catch (fetchErr) {
             const jsonpData = await leerSheetsPorJSONP(gasWebAppUrl);
             if (jsonpData && jsonpData.ok) {
               registrosRemotos = jsonpData.registros || [];
+              usuariosRemotos = jsonpData.usuarios || [];
             } else {
               throw fetchErr;
             }
           }
         }
 
+        // 1. Sincronizar usuarios desde la nube
+        if (Array.isArray(usuariosRemotos) && usuariosRemotos.length > 0) {
+          for (const ru of usuariosRemotos) {
+            if (ru.username) {
+              await db.usuarios.put(ru);
+            }
+          }
+          listaUsuarios = await db.usuarios.toArray();
+          if (usuarioActual) {
+            const actualRefrescado = listaUsuarios.find(u => u.username.toLowerCase() === usuarioActual.username.toLowerCase());
+            if (actualRefrescado) {
+              usuarioActual = actualRefrescado;
+              aplicarPermisosInterfaz();
+            }
+          }
+          renderizarTablaUsuariosAdmin();
+        }
+
+        // 2. Sincronizar registros de muertes
         if (Array.isArray(registrosRemotos)) {
           const normalizados = registrosRemotos.map((r, i) => ({
             fila: i,
@@ -1739,6 +1781,14 @@
             dia: r.dia || "",
             guardado: true
           }));
+
+          const fechasValidas = normalizados.map(r => r.fecha).filter(Boolean);
+          fechasValidas.sort();
+          const ultimaFecha = fechasValidas.length > 0 ? fechasValidas[fechasValidas.length - 1] : "";
+          const hashActual = `${normalizados.length}_${ultimaFecha}`;
+          const esPrimerInicio = !ultimoHashSincronizacion;
+          const huboNuevosDatos = ultimoHashSincronizacion && (ultimoHashSincronizacion !== hashActual);
+          ultimoHashSincronizacion = hashActual;
 
           await db.datos.clear();
           if (normalizados.length > 0) {
@@ -1758,8 +1808,12 @@
           }
 
           actualizarIndicadorNube("conectado", `Google Sheets (${normalizados.length} reg.)`);
-          if (mostrarAlerta) {
-            mostrarToast(`Sincronizado con Google Sheets (${normalizados.length} registros).`, "success");
+          if (huboNuevosDatos) {
+            mostrarToast(`🔔 Datos actualizados desde la nube: ${normalizados.length} registros (última fecha: ${ultimaFecha || 'al día'}).`, "info");
+          } else if (mostrarAlerta) {
+            mostrarToast(`Sincronizado con Google Sheets (${normalizados.length} registros. Última fecha: ${ultimaFecha || 'N/D'}).`, "success");
+          } else if (esPrimerInicio && normalizados.length > 0) {
+            mostrarToast(`Nube conectada: Información actualizada (última fecha: ${ultimaFecha || 'registros cargados'}).`, "success");
           }
         }
       } catch (err) {
@@ -1769,6 +1823,84 @@
         }
       } finally {
         sincronizando = false;
+      }
+    }
+
+    async function enviarUsuarioASheets(usuario, origUsername) {
+      if (!ES_ENTORNO_GAS && !gasWebAppUrl) return false;
+      try {
+        if (ES_ENTORNO_GAS) {
+          await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .guardarOUsuarioSheet(usuario, origUsername);
+          });
+        } else {
+          const payloadStr = JSON.stringify({ action: "saveUser", usuario, origUsername });
+          try {
+            await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "follow",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+          } catch (_) {
+            await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "no-cors",
+              credentials: "omit",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+          }
+        }
+        mostrarToast(`Usuario "${usuario.username}" sincronizado en la nube con Google Sheets.`, "success");
+        return true;
+      } catch (e) {
+        mostrarToast("Usuario guardado localmente (Fallo al subir a Google Sheets).", "warning");
+        return false;
+      }
+    }
+
+    async function eliminarUsuarioEnSheets(username) {
+      if (!ES_ENTORNO_GAS && !gasWebAppUrl) return false;
+      try {
+        if (ES_ENTORNO_GAS) {
+          await new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .eliminarUsuarioSheet(username);
+          });
+        } else {
+          const payloadStr = JSON.stringify({ action: "deleteUser", username });
+          try {
+            await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "cors",
+              credentials: "omit",
+              redirect: "follow",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+          } catch (_) {
+            await fetch(gasWebAppUrl, {
+              method: "POST",
+              mode: "no-cors",
+              credentials: "omit",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: payloadStr
+            });
+          }
+        }
+        mostrarToast(`Usuario "${username}" eliminado de la nube en Google Sheets.`, "success");
+        return true;
+      } catch (e) {
+        mostrarToast("Usuario eliminado localmente (Fallo al borrar de Google Sheets).", "warning");
+        return false;
       }
     }
 
@@ -2248,7 +2380,6 @@
         const input = td.firstElementChild;
         if (!input.disabled) {
           input.focus();
-          if (input.tagName === "INPUT" && input.type !== "date") input.select();
         }
         input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
         document.getElementById("cell-ref").textContent = `${LETRAS[col]}${fila + 1}`;
@@ -2313,6 +2444,11 @@
           guardado: true
         }));
 
+        const fechasGuardadas = aGuardar.map(r => r.fecha).filter(Boolean);
+        fechasGuardadas.sort();
+        const ultimaFechaGuardada = fechasGuardadas.length > 0 ? fechasGuardadas[fechasGuardadas.length - 1] : "";
+        ultimoHashSincronizacion = `${aGuardar.length}_${ultimaFechaGuardada}`;
+
         await db.datos.clear();
         if (aGuardar.length > 0) {
           await db.datos.bulkPut(aGuardar);
@@ -2326,15 +2462,16 @@
         document.getElementById("unsaved-badge").classList.add("hidden");
         renderizarGrilla();
 
+        const detalleFecha = ultimaFechaGuardada ? ` (Última fecha: ${ultimaFechaGuardada})` : "";
         if (ES_ENTORNO_GAS || gasWebAppUrl) {
           const okNube = await enviarTodoASheets(aGuardar);
           if (okNube) {
-            mostrarToast(`${aGuardar.length} registros guardados y sincronizados en Google Sheets.`, "success");
+            mostrarToast(`✅ ${aGuardar.length} registros guardados y sincronizados en la nube${detalleFecha}.`, "success");
           } else {
-            mostrarToast(`Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
+            mostrarToast(`⚠️ Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
           }
         } else {
-          mostrarToast(`${aGuardar.length} registros guardados localmente.`, "success");
+          mostrarToast(`✅ ${aGuardar.length} registros guardados localmente${detalleFecha}.`, "success");
         }
       } catch (err) {
         mostrarToast("Error al guardar: " + err.message, "error");
