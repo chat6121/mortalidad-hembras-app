@@ -5,6 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Mortalidad de Hembras - Análisis y Registro</title>
+  <link rel="manifest" href="manifest.json">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 
   <!-- ==================== DEPENDENCIAS EXTERNAS ==================== -->
   <!-- Tailwind CSS para diseño responsivo y UI moderna -->
@@ -2122,10 +2126,42 @@
         } else {
           actualizarIndicadorNube("local");
         }
+
+        // Monitorear versión del archivo version.json para auto-actualizar la app en caso de cambios
+        verificarActualizacionApp();
+        setInterval(verificarActualizacionApp, 60000);
       } catch (e) {
         // Inicialización segura
       }
     });
+
+    async function verificarActualizacionApp() {
+      try {
+        const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const info = await res.json();
+        const versionRemota = info.version;
+        const versionGuardada = localStorage.getItem("app_version");
+
+        if (versionGuardada && versionGuardada !== versionRemota) {
+          localStorage.setItem("app_version", versionRemota);
+          Swal.fire({
+            title: "Nueva actualización disponible",
+            text: "Hay una versión más reciente de la aplicación. Se actualizará para cargar los cambios.",
+            icon: "info",
+            confirmButtonText: "Actualizar ahora",
+            background: "#020617",
+            color: "#f8fafc",
+            confirmButtonColor: "#2563eb",
+            customClass: { popup: "swal-dark-popup" }
+          }).then(() => {
+            window.location.reload(true);
+          });
+        } else if (!versionGuardada) {
+          localStorage.setItem("app_version", versionRemota);
+        }
+      } catch (_) {}
+    }
 
     function generarFilasVacias(n) {
       return Array.from({ length: n }, (_, i) => ({
