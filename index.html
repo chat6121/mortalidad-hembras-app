@@ -135,6 +135,9 @@
       font-size: 12px;
       cursor: cell;
       box-sizing: border-box;
+      direction: ltr !important;
+      unicode-bidi: isolate;
+      text-align: left;
     }
 
     #data-table tbody td select {
@@ -994,6 +997,7 @@
     let grillaNecesitaRender = true;
     let gasWebAppUrl = DEFAULT_GAS_URL;
     let sincronizando = false;
+    let ultimoResumenSincronizacion = "";
 
     const FILAS_POR_PAGINA = 80;
     let paginaActualTabla = 1;
@@ -1956,6 +1960,18 @@
             guardado: true
           }));
 
+          // Obtener fechas únicas registradas para notificar a los usuarios
+          const fechasValidas = normalizados.map(r => r.fecha).filter(Boolean);
+          fechasValidas.sort();
+          const ultimaFecha = fechasValidas.length > 0 ? fechasValidas[fechasValidas.length - 1] : "";
+          const totalRegs = normalizados.length;
+          const nuevoResumen = `${totalRegs}_${ultimaFecha}`;
+
+          // Detectar si hay datos nuevos o si es el primer inicio para notificar la fecha actualizada
+          const esPrimeraVez = !ultimoResumenSincronizacion;
+          const huboActualizacion = ultimoResumenSincronizacion && (ultimoResumenSincronizacion !== nuevoResumen);
+          ultimoResumenSincronizacion = nuevoResumen;
+
           await db.datos.clear();
           if (normalizados.length > 0) {
             await db.datos.bulkPut(normalizados);
@@ -1974,8 +1990,13 @@
           }
 
           actualizarIndicadorNube("conectado", `Google Sheets (${normalizados.length} reg.)`);
-          if (mostrarAlerta) {
-            mostrarToast(`Sincronizado con Google Sheets (${normalizados.length} registros).`, "success");
+
+          if (huboActualizacion) {
+            mostrarToast(`🔔 Datos actualizados desde la nube: ${totalRegs} registros (última fecha: ${ultimaFecha || 'N/D'}).`, "info");
+          } else if (mostrarAlerta) {
+            mostrarToast(`Sincronizado con Google Sheets (${totalRegs} registros. Fecha más reciente: ${ultimaFecha || 'N/D'}).`, "success");
+          } else if (esPrimeraVez && totalRegs > 0) {
+            mostrarToast(`Conectado a la nube: Información cargada al día (${ultimaFecha || 'registros listos'}).`, "success");
           }
         }
       } catch (err) {
@@ -2426,6 +2447,7 @@
             input.value = fila[campo] || "";
             input.autocomplete = "off";
             input.spellcheck = false;
+            input.setAttribute("dir", "ltr");
           }
 
           if (celdaBloqueada) {
@@ -2542,7 +2564,6 @@
         const input = td.firstElementChild;
         if (!input.disabled) {
           input.focus();
-          if (input.tagName === "INPUT" && input.type !== "date") input.select();
         }
         input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
         document.getElementById("cell-ref").textContent = `${LETRAS[col]}${fila + 1}`;
@@ -2607,6 +2628,11 @@
           guardado: true
         }));
 
+        const fechasGuardadas = aGuardar.map(r => r.fecha).filter(Boolean);
+        fechasGuardadas.sort();
+        const ultimaFechaGuardada = fechasGuardadas.length > 0 ? fechasGuardadas[fechasGuardadas.length - 1] : "";
+        ultimoResumenSincronizacion = `${aGuardar.length}_${ultimaFechaGuardada}`;
+
         await db.datos.clear();
         if (aGuardar.length > 0) {
           await db.datos.bulkPut(aGuardar);
@@ -2620,15 +2646,16 @@
         document.getElementById("unsaved-badge").classList.add("hidden");
         renderizarGrilla();
 
+        const detalleFecha = ultimaFechaGuardada ? ` (Última fecha: ${ultimaFechaGuardada})` : "";
         if (ES_ENTORNO_GAS || gasWebAppUrl) {
           const okNube = await enviarTodoASheets(aGuardar);
           if (okNube) {
-            mostrarToast(`${aGuardar.length} registros guardados y sincronizados en Google Sheets.`, "success");
+            mostrarToast(`✅ ${aGuardar.length} registros guardados y sincronizados en la nube${detalleFecha}.`, "success");
           } else {
-            mostrarToast(`Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
+            mostrarToast(`⚠️ Guardado localmente (${aGuardar.length}). Pendiente sincronizar a la nube.`, "warning");
           }
         } else {
-          mostrarToast(`${aGuardar.length} registros guardados localmente.`, "success");
+          mostrarToast(`✅ ${aGuardar.length} registros guardados localmente${detalleFecha}.`, "success");
         }
       } catch (err) {
         mostrarToast("Error al guardar: " + err.message, "error");
