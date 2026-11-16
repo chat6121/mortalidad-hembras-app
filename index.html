@@ -1243,10 +1243,10 @@
      *  GESTIÓN DE AUTENTICACIÓN, USUARIOS Y PRIVILEGIOS
      *  ======================================================================== */
     async function inicializarUsuariosDB() {
-      // Intentar primero descargar los usuarios más recientes desde la nube si hay conexión
+      // 1. Obtener lista de usuarios de la nube si existe conexión configurada
+      let remotos = null;
       if (ES_ENTORNO_GAS || gasWebAppUrl) {
         try {
-          let remotos = null;
           if (ES_ENTORNO_GAS) {
             remotos = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet());
           } else {
@@ -1258,42 +1258,47 @@
               if (j.ok && Array.isArray(j.usuarios)) remotos = j.usuarios;
             }
           }
-          if (Array.isArray(remotos) && remotos.length > 0) {
-            for (const ru of remotos) {
-              if (ru.username) await db.usuarios.put(ru);
-            }
-          }
         } catch (_) {}
       }
 
-      // Obtener usuarios guardados y lista de eliminados
-      const guardados = await db.usuarios.toArray();
+      // Si vinieron de la nube, ellos son la verdad absoluta: guardarlos en IndexedDB
+      if (Array.isArray(remotos) && remotos.length > 0) {
+        for (const ru of remotos) {
+          if (ru.username) await db.usuarios.put(ru);
+        }
+      }
+
+      // 2. Obtener usuarios locales y lista de eliminados
+      let guardados = await db.usuarios.toArray();
       const eliminadosDoc = await db.config.get("usuarios_eliminados");
       const eliminados = new Set(Array.isArray(eliminadosDoc?.valor) ? eliminadosDoc.valor.map(u => String(u).toLowerCase()) : []);
+      eliminados.delete("superadmin");
 
-      // Asegurar que superadmin esté siempre disponible y actualizado
+      let usuariosMap = new Map();
+
+      // Cargar los predeterminados de fábrica (garantizando superadmin)
+      DEFAULT_USERS.forEach(u => {
+        if (!eliminados.has(u.username.toLowerCase())) {
+          usuariosMap.set(u.username.toLowerCase(), u);
+        }
+      });
+
+      // Sobrescribir / Añadir los guardados en base local
+      guardados.forEach(u => {
+        if (u.username && !eliminados.has(u.username.toLowerCase())) {
+          usuariosMap.set(u.username.toLowerCase(), u);
+        }
+      });
+
+      // Garantizar explícitamente siempre la cuenta superadmin
       const superAdminPreset = DEFAULT_USERS.find(u => u.username === "superadmin");
       if (superAdminPreset) {
-        eliminados.delete("superadmin");
+        usuariosMap.set("superadmin", superAdminPreset);
+        await db.usuarios.put(superAdminPreset);
       }
 
-      if (guardados.length === 0) {
-        // Primera ejecución: cargar los predeterminados que no hayan sido marcados como eliminados
-        listaUsuarios = DEFAULT_USERS.filter(u => !eliminados.has(u.username.toLowerCase()));
-        await db.usuarios.bulkPut(listaUsuarios);
-      } else {
-        // Ya hay usuarios en la base de datos local: respetamos los guardados y garantizamos superadmin
-        let usuariosMap = new Map();
-        guardados.forEach(u => usuariosMap.set(u.username.toLowerCase(), u));
-        
-        // Garantizar que superadmin exista en la base local con su clave admin123
-        if (superAdminPreset && !usuariosMap.has("superadmin")) {
-          usuariosMap.set("superadmin", superAdminPreset);
-          await db.usuarios.put(superAdminPreset);
-        }
-
-        listaUsuarios = Array.from(usuariosMap.values()).filter(u => !eliminados.has(u.username.toLowerCase()));
-      }
+      listaUsuarios = Array.from(usuariosMap.values());
+      await db.usuarios.bulkPut(listaUsuarios);
     }
 
     function tienePermiso(permiso) {
