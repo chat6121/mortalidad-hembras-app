@@ -1243,6 +1243,29 @@
      *  GESTIÓN DE AUTENTICACIÓN, USUARIOS Y PRIVILEGIOS
      *  ======================================================================== */
     async function inicializarUsuariosDB() {
+      // Intentar primero descargar los usuarios más recientes desde la nube si hay conexión
+      if (ES_ENTORNO_GAS || gasWebAppUrl) {
+        try {
+          let remotos = null;
+          if (ES_ENTORNO_GAS) {
+            remotos = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet());
+          } else {
+            const sep = gasWebAppUrl.includes("?") ? "&" : "?";
+            const urlUsers = `${gasWebAppUrl}${sep}action=readUsers&t=${Date.now()}`;
+            const res = await fetch(urlUsers, { method: "GET", mode: "cors", credentials: "omit" });
+            if (res.ok) {
+              const j = await res.json();
+              if (j.ok && Array.isArray(j.usuarios)) remotos = j.usuarios;
+            }
+          }
+          if (Array.isArray(remotos) && remotos.length > 0) {
+            for (const ru of remotos) {
+              if (ru.username) await db.usuarios.put(ru);
+            }
+          }
+        } catch (_) {}
+      }
+
       // Obtener usuarios guardados y lista de eliminados
       const guardados = await db.usuarios.toArray();
       const eliminadosDoc = await db.config.get("usuarios_eliminados");
@@ -1879,19 +1902,10 @@
         let usuariosRemotos = null;
 
         if (ES_ENTORNO_GAS) {
-          const resultado = await new Promise((resolve, reject) => {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .doGet({ parameter: { action: "read" } });
-          }).catch(async () => {
-            return {
-              registros: await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerRegistrosSheet()),
-              usuarios: await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet())
-            };
-          });
-          registrosRemotos = resultado.registros || [];
-          usuariosRemotos = resultado.usuarios || [];
+          const resUsers = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerUsuariosSheet()).catch(() => []);
+          const resRegs = await new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).leerRegistrosSheet()).catch(() => []);
+          usuariosRemotos = resUsers || [];
+          registrosRemotos = resRegs || [];
         } else {
           const sep = gasWebAppUrl.includes("?") ? "&" : "?";
           const urlLectura = `${gasWebAppUrl}${sep}action=read&t=${Date.now()}`;
@@ -1921,18 +1935,14 @@
 
         // Sincronizar Usuarios desde la Nube (si vinieron en la respuesta)
         if (Array.isArray(usuariosRemotos) && usuariosRemotos.length > 0) {
-          const eliminadosDoc = await db.config.get("usuarios_eliminados");
-          const eliminados = new Set(Array.isArray(eliminadosDoc?.valor) ? eliminadosDoc.valor.map(u => String(u).toLowerCase()) : []);
-          
           for (const u of usuariosRemotos) {
             const uLower = String(u.username || "").toLowerCase();
-            if (uLower && !eliminados.has(uLower)) {
+            if (uLower) {
               await db.usuarios.put(u);
             }
           }
-          // Recargar lista en memoria
-          const todosDB = await db.usuarios.toArray();
-          listaUsuarios = todosDB.filter(u => !eliminados.has(u.username.toLowerCase()));
+          // Recargar lista en memoria directamente desde la base local actualizada
+          listaUsuarios = await db.usuarios.toArray();
           
           // Si el usuario actual está en sesión, refrescar sus permisos en vivo
           if (usuarioActual) {
